@@ -107,6 +107,13 @@ export interface EventStats {
   attendancePercentage: number;
 }
 
+export interface CloudConfig {
+  mode: 'local' | 'cloud';
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  deviceName: string;
+}
+
 export interface ElectronAPI {
   getEvents: () => Promise<Event[]>;
   getActiveEvent: () => Promise<Event | null>;
@@ -132,6 +139,10 @@ export interface ElectronAPI {
   exportPdf: (data: { event: Event; invitations: Invitation[]; printSettings: PrintSettings }) => Promise<{ success: boolean; filePath?: string; error?: string }>;
   printPdf: (data: { event: Event; invitations: Invitation[]; printSettings: PrintSettings }) => Promise<{ success: boolean; error?: string }>;
   generateQrDataUrl: (text: string) => Promise<string>;
+  getCloudConfig: () => Promise<CloudConfig>;
+  saveCloudConfig: (config: CloudConfig) => Promise<{ success: boolean; error?: string }>;
+  testCloudConnection: (url: string, key: string) => Promise<{ success: boolean; message?: string; latencyMs?: number }>;
+  syncLocalToCloud: () => Promise<{ success: boolean; eventsSynced: number; invitationsSynced: number; error?: string }>;
 }
 
 declare global {
@@ -139,3 +150,4 @@ declare global {
     electronAPI: ElectronAPI;
   }
 }
+

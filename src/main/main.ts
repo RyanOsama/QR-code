@@ -60,50 +60,125 @@ function createWindow() {
   });
 }
 
+import { SupabaseService } from '../services/supabaseService';
+
 // Register all IPC Handlers
 function registerIpcHandlers() {
   // Events
-  ipcMain.handle('events:getAll', () => EventRepository.getAll());
-  ipcMain.handle('events:getActive', () => EventRepository.getActive());
-  ipcMain.handle('events:create', (_, data) => EventRepository.create(data));
-  ipcMain.handle('events:update', (_, id, data) => EventRepository.update(id, data));
-  ipcMain.handle('events:setActive', (_, id) => EventRepository.setActive(id));
-  ipcMain.handle('events:delete', (_, id) => {
+  ipcMain.handle('events:getAll', async () => {
+    if (SupabaseService.isCloudMode()) {
+      return await SupabaseService.getEvents();
+    }
+    return EventRepository.getAll();
+  });
+
+  ipcMain.handle('events:getActive', async () => {
+    if (SupabaseService.isCloudMode()) {
+      return await SupabaseService.getActiveEvent();
+    }
+    return EventRepository.getActive();
+  });
+
+  ipcMain.handle('events:create', async (_, data) => {
+    if (SupabaseService.isCloudMode()) {
+      return await SupabaseService.createEvent(data);
+    }
+    return EventRepository.create(data);
+  });
+
+  ipcMain.handle('events:update', async (_, id, data) => {
+    if (SupabaseService.isCloudMode()) {
+      return await SupabaseService.updateEvent(id, data);
+    }
+    return EventRepository.update(id, data);
+  });
+
+  ipcMain.handle('events:setActive', async (_, id) => {
+    if (SupabaseService.isCloudMode()) {
+      return await SupabaseService.setActiveEvent(id);
+    }
+    return EventRepository.setActive(id);
+  });
+
+  ipcMain.handle('events:delete', async (_, id) => {
+    if (SupabaseService.isCloudMode()) {
+      return await SupabaseService.deleteEvent(id);
+    }
     EventRepository.delete(id);
     return { success: true };
   });
-  ipcMain.handle('events:getStats', (_, eventId) => EventRepository.getStats(eventId));
+
+  ipcMain.handle('events:getStats', async (_, eventId) => {
+    if (SupabaseService.isCloudMode()) {
+      return await SupabaseService.getEventStats(eventId);
+    }
+    return EventRepository.getStats(eventId);
+  });
 
   // Invitations
-  ipcMain.handle('invitations:getByEvent', (_, eventId, filter) =>
-    InvitationRepository.getByEventId(eventId, filter)
-  );
-  ipcMain.handle('invitations:generateBatch', (_, eventId, count, guestNames, graduateAllocations) =>
-    InvitationRepository.generateBatch(eventId, count, guestNames, graduateAllocations)
-  );
-  ipcMain.handle('invitations:updateGuestName', (_, invitationId, guestName) =>
-    InvitationRepository.updateGuestName(invitationId, guestName)
-  );
-  ipcMain.handle('invitations:delete', (_, invitationId) =>
-    InvitationRepository.delete(invitationId)
-  );
-  ipcMain.handle('invitations:regenerateToken', (_, invitationId) =>
-    InvitationRepository.regenerateToken(invitationId)
-  );
+  ipcMain.handle('invitations:getByEvent', async (_, eventId, filter) => {
+    if (SupabaseService.isCloudMode()) {
+      return await SupabaseService.getInvitations(eventId, filter);
+    }
+    return InvitationRepository.getByEventId(eventId, filter);
+  });
+
+  ipcMain.handle('invitations:generateBatch', async (_, eventId, count, guestNames, graduateAllocations) => {
+    if (SupabaseService.isCloudMode()) {
+      return await SupabaseService.generateBatch(eventId, count, guestNames, graduateAllocations);
+    }
+    return InvitationRepository.generateBatch(eventId, count, guestNames, graduateAllocations);
+  });
+
+  ipcMain.handle('invitations:updateGuestName', async (_, invitationId, guestName) => {
+    if (SupabaseService.isCloudMode()) {
+      return await SupabaseService.updateGuestName(invitationId, guestName);
+    }
+    return InvitationRepository.updateGuestName(invitationId, guestName);
+  });
+
+  ipcMain.handle('invitations:delete', async (_, invitationId) => {
+    if (SupabaseService.isCloudMode()) {
+      return await SupabaseService.deleteInvitation(invitationId);
+    }
+    return InvitationRepository.delete(invitationId);
+  });
+
+  ipcMain.handle('invitations:regenerateToken', async (_, invitationId) => {
+    if (SupabaseService.isCloudMode()) {
+      return await SupabaseService.regenerateToken(invitationId);
+    }
+    return InvitationRepository.regenerateToken(invitationId);
+  });
 
   // Atomic Check-in
-  ipcMain.handle('checkIn:verify', (_, token, eventId, deviceName) =>
-    CheckInService.verifyAndCheckIn(token, eventId, deviceName)
-  );
+  ipcMain.handle('checkIn:verify', async (_, token, eventId, deviceName) => {
+    if (SupabaseService.isCloudMode()) {
+      return await SupabaseService.checkIn(token, eventId, deviceName);
+    }
+    return CheckInService.verifyAndCheckIn(token, eventId, deviceName);
+  });
 
   // Scan Logs
-  ipcMain.handle('scanLogs:getByEvent', (_, eventId, limit) =>
-    ScanLogRepository.getByEventId(eventId, limit)
-  );
+  ipcMain.handle('scanLogs:getByEvent', async (_, eventId, limit) => {
+    if (SupabaseService.isCloudMode()) {
+      return await SupabaseService.getScanLogs(eventId, limit);
+    }
+    return ScanLogRepository.getByEventId(eventId, limit);
+  });
 
-  // Database Backup / Restore
+  // Database Backup / Restore (Local SQLite)
   ipcMain.handle('database:backup', () => BackupService.backupDatabase());
   ipcMain.handle('database:restore', () => BackupService.restoreDatabase());
+
+  // Cloud Sync & Configuration
+  ipcMain.handle('cloud:getConfig', () => SupabaseService.getConfig());
+  ipcMain.handle('cloud:saveConfig', (_, config) => {
+    SupabaseService.saveConfig(config);
+    return { success: true };
+  });
+  ipcMain.handle('cloud:testConnection', (_, url, key) => SupabaseService.testConnection(url, key));
+  ipcMain.handle('cloud:syncLocalToCloud', () => SupabaseService.syncLocalToCloud());
 
   // PDF Export and Print
   ipcMain.handle('pdf:export', (_, data) =>
@@ -116,6 +191,7 @@ function registerIpcHandlers() {
   // QR generation utility
   ipcMain.handle('qr:generateDataUrl', (_, text) => QrService.generateDataUrl(text));
 }
+
 
 app.whenReady().then(() => {
   initDatabase();

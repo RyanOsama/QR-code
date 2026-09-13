@@ -7,8 +7,9 @@ import { PrintSettingsPage } from './pages/PrintSettings';
 import { ScanLogsPage } from './pages/ScanLogs';
 import { EventsModal } from './pages/EventsModal';
 import { BackupModal } from './pages/BackupModal';
+import { CloudSettingsModal } from './components/CloudSettingsModal';
 import { QrModal } from './components/QrModal';
-import { Event, Invitation, ScanLog, EventStats } from '../types';
+import { Event, Invitation, ScanLog, EventStats, CloudConfig } from '../types';
 import { api } from './utils/apiBridge';
 import { useTheme } from './context/ThemeContext';
 
@@ -19,6 +20,7 @@ export function App() {
   const [activeEvent, setActiveEvent] = useState<Event | null>(null);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [scanLogs, setScanLogs] = useState<ScanLog[]>([]);
+  const [cloudConfig, setCloudConfig] = useState<CloudConfig | null>(null);
   const [stats, setStats] = useState<EventStats>({
     totalInvitations: 0,
     usedInvitations: 0,
@@ -32,8 +34,19 @@ export function App() {
   // Modals state
   const [isEventsModalOpen, setIsEventsModalOpen] = useState(false);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
+  const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
   const [isCreateInvModalOpen, setIsCreateInvModalOpen] = useState(false);
   const [selectedInvitationForQr, setSelectedInvitationForQr] = useState<Invitation | null>(null);
+
+  // Load cloud configuration
+  const refreshCloudConfig = useCallback(async () => {
+    try {
+      const cfg = await api.getCloudConfig();
+      setCloudConfig(cfg);
+    } catch (err) {
+      console.error('Error loading cloud config:', err);
+    }
+  }, []);
 
   // Load all events and determine active event
   const refreshEvents = useCallback(async () => {
@@ -80,20 +93,41 @@ export function App() {
     }
   }, [activeEvent]);
 
-  // Initial load
+  // Initial load: fetch cloud config and events
   useEffect(() => {
+    refreshCloudConfig();
     refreshEvents();
-  }, [refreshEvents]);
+  }, [refreshCloudConfig, refreshEvents]);
 
   // When active event changes, reload invitations & stats
   useEffect(() => {
     refreshCurrentEventData();
   }, [activeEvent, refreshCurrentEventData]);
 
+  // Real-time synchronization interval across multiple devices (when in Cloud mode)
+  useEffect(() => {
+    if (cloudConfig?.mode !== 'cloud' || !activeEvent) return;
+
+    const interval = setInterval(() => {
+      // Keep dashboard, invitations, and logs synchronized in real time across multiple laptops
+      if (['dashboard', 'invitations', 'logs'].includes(currentTab)) {
+        refreshCurrentEventData();
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [cloudConfig?.mode, activeEvent, currentTab, refreshCurrentEventData]);
+
   const handleSelectEvent = async (event: Event) => {
     await api.setActiveEvent(event.id);
     setActiveEvent(event);
     refreshEvents();
+  };
+
+  const handleCloudConfigUpdated = () => {
+    refreshCloudConfig();
+    refreshEvents();
+    refreshCurrentEventData();
   };
 
   return (
@@ -108,8 +142,10 @@ export function App() {
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
         activeEvent={activeEvent}
+        cloudConfig={cloudConfig}
         onOpenEventsModal={() => setIsEventsModalOpen(true)}
         onOpenBackupModal={() => setIsBackupModalOpen(true)}
+        onOpenCloudModal={() => setIsCloudModalOpen(true)}
       />
 
       {/* Main App Body */}
@@ -146,6 +182,7 @@ export function App() {
         {currentTab === 'scanner' && (
           <Scanner
             activeEvent={activeEvent}
+            deviceName={cloudConfig?.deviceName}
             onCheckInSuccess={refreshCurrentEventData}
           />
         )}
@@ -172,7 +209,14 @@ export function App() {
           ? 'border-slate-900 text-slate-500' 
           : 'border-slate-200 text-slate-600'
       }`}>
-        <span>منظومة إدارة المناسبات والدخول بالـ QR • نظام محلي (Local-First)</span>
+        <span>
+          منظومة إدارة المناسبات والدخول بالـ QR •{' '}
+          {cloudConfig?.mode === 'cloud' ? (
+            <span className="text-emerald-400 font-bold">🟢 متصل بالسحابة ({cloudConfig.deviceName || 'متصل'})</span>
+          ) : (
+            <span>وضع محلي (Local-First)</span>
+          )}
+        </span>
         <span className={`font-mono font-bold ${isDark ? 'text-amber-500/80' : 'text-amber-700'}`}>نسخة سطح المكتب v1.0</span>
       </footer>
 
@@ -194,6 +238,13 @@ export function App() {
             refreshEvents();
             refreshCurrentEventData();
           }}
+        />
+      )}
+
+      {isCloudModalOpen && (
+        <CloudSettingsModal
+          onClose={() => setIsCloudModalOpen(false)}
+          onConfigUpdated={handleCloudConfigUpdated}
         />
       )}
 

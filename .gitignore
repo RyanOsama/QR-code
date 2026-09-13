@@ -7,8 +7,7 @@ dist-electron/
 release/
 
 # Database files & generated PDFs
-database_files/*.db
-database_files/*.pdf
+database_files/
 *.db
 *.sqlite
 *.sqlite3

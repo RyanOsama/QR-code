@@ -9,8 +9,8 @@ const api: ElectronAPI = {
   setActiveEvent: (id) => ipcRenderer.invoke('events:setActive', id),
   deleteEvent: (id) => ipcRenderer.invoke('events:delete', id),
   getInvitations: (eventId, filter) => ipcRenderer.invoke('invitations:getByEvent', eventId, filter),
-  generateInvitations: (eventId, count, guestNames) =>
-    ipcRenderer.invoke('invitations:generateBatch', eventId, count, guestNames),
+  generateInvitations: (eventId, count, guestNames, graduateAllocations) =>
+    ipcRenderer.invoke('invitations:generateBatch', eventId, count, guestNames, graduateAllocations),
   updateGuestName: (invitationId, guestName) =>
     ipcRenderer.invoke('invitations:updateGuestName', invitationId, guestName),
   deleteInvitation: (invitationId) => ipcRenderer.invoke('invitations:delete', invitationId),
@@ -23,6 +23,10 @@ const api: ElectronAPI = {
   exportPdf: (data) => ipcRenderer.invoke('pdf:export', data),
   printPdf: (data) => ipcRenderer.invoke('pdf:print', data),
   generateQrDataUrl: (text) => ipcRenderer.invoke('qr:generateDataUrl', text),
+  getCloudConfig: () => ipcRenderer.invoke('cloud:getConfig'),
+  saveCloudConfig: (config) => ipcRenderer.invoke('cloud:saveConfig', config),
+  testCloudConnection: (url, key) => ipcRenderer.invoke('cloud:testConnection', url, key),
+  syncLocalToCloud: () => ipcRenderer.invoke('cloud:syncLocalToCloud'),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

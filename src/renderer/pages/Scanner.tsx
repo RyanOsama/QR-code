@@ -20,10 +20,11 @@ import { sounds } from '../utils/sound';
 
 interface ScannerProps {
   activeEvent: Event | null;
+  deviceName?: string;
   onCheckInSuccess?: () => void;
 }
 
-export const Scanner: React.FC<ScannerProps> = ({ activeEvent, onCheckInSuccess }) => {
+export const Scanner: React.FC<ScannerProps> = ({ activeEvent, deviceName, onCheckInSuccess }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
 
@@ -149,7 +150,7 @@ export const Scanner: React.FC<ScannerProps> = ({ activeEvent, onCheckInSuccess 
 
     setIsProcessing(true);
     try {
-      const res = await api.checkIn(token.trim(), activeEvent.id, 'كاميرا البوابة الرئيسية');
+      const res = await api.checkIn(token.trim(), activeEvent.id, deviceName || 'كاميرا البوابة');
       setLastResult(res);
       setShowFeedback(true);
 

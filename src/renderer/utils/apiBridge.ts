@@ -28,4 +28,8 @@ export const api: ElectronAPI = (window as any).electronAPI || {
   exportPdf: async () => ({ success: false, error: 'غير متاح' }),
   printPdf: async () => ({ success: false, error: 'غير متاح' }),
   generateQrDataUrl: async () => '',
+  getCloudConfig: async () => ({ mode: 'local', supabaseUrl: '', supabaseAnonKey: '', deviceName: 'بوابة 1' }),
+  saveCloudConfig: async () => ({ success: true }),
+  testCloudConnection: async () => ({ success: false, message: 'Electron IPC غير متاح' }),
+  syncLocalToCloud: async () => ({ success: false, eventsSynced: 0, invitationsSynced: 0, error: 'غير متاح' }),
 };

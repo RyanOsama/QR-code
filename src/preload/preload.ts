@@ -23,6 +23,10 @@ const api: ElectronAPI = {
   exportPdf: (data) => ipcRenderer.invoke('pdf:export', data),
   printPdf: (data) => ipcRenderer.invoke('pdf:print', data),
   generateQrDataUrl: (text) => ipcRenderer.invoke('qr:generateDataUrl', text),
+  getCloudConfig: () => ipcRenderer.invoke('cloud:getConfig'),
+  saveCloudConfig: (config) => ipcRenderer.invoke('cloud:saveConfig', config),
+  testCloudConnection: (url, key) => ipcRenderer.invoke('cloud:testConnection', url, key),
+  syncLocalToCloud: () => ipcRenderer.invoke('cloud:syncLocalToCloud'),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);
