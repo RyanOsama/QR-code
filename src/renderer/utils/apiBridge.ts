@@ -1,0 +1,31 @@
+import { ElectronAPI } from '../../types';
+
+export const api: ElectronAPI = (window as any).electronAPI || {
+  getEvents: async () => [],
+  getActiveEvent: async () => null,
+  createEvent: async () => ({ id: 1, name: '', date: '', capacity: 100, status: 'ACTIVE', created_at: '', updated_at: '' }),
+  updateEvent: async () => ({} as any),
+  setActiveEvent: async () => {},
+  deleteEvent: async () => ({ success: true }),
+  getInvitations: async () => [],
+  generateInvitations: async () => ({ success: false, count: 0, error: 'تعذر الاتصال بـ Electron' }),
+  updateGuestName: async () => ({} as any),
+  deleteInvitation: async () => ({ success: true }),
+  regenerateToken: async () => ({ success: false }),
+  checkIn: async () => ({ success: false, result: 'INVALID', message: 'Electron IPC غير متاح' }),
+  getScanLogs: async () => [],
+  getEventStats: async () => ({
+    totalInvitations: 0,
+    usedInvitations: 0,
+    unusedInvitations: 0,
+    acceptedScans: 0,
+    alreadyUsedScans: 0,
+    invalidScans: 0,
+    attendancePercentage: 0,
+  }),
+  backupDatabase: async () => ({ success: false, error: 'غير متاح' }),
+  restoreDatabase: async () => ({ success: false, error: 'غير متاح' }),
+  exportPdf: async () => ({ success: false, error: 'غير متاح' }),
+  printPdf: async () => ({ success: false, error: 'غير متاح' }),
+  generateQrDataUrl: async () => '',
+};

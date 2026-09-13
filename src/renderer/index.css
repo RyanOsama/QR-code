@@ -1,0 +1,186 @@
+@import "tailwindcss";
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
+  }
+  
+  body {
+    background-color: #020617;
+    color: #f8fafc;
+    font-family: 'Cairo', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Custom Modern Scrollbars */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0b0f19;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #1e293b;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #334155;
+  }
+}
+
+/* Luxury animations */
+@keyframes pulse-gold {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(215, 164, 43, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(215, 164, 43, 0.45);
+  }
+}
+
+.glow-gold {
+  animation: pulse-gold 3s infinite;
+}
+
+@keyframes scan-line {
+  0% {
+    top: 5%;
+    opacity: 0.8;
+  }
+  50% {
+    top: 90%;
+    opacity: 1;
+  }
+  100% {
+    top: 5%;
+    opacity: 0.8;
+  }
+}
+
+.scanner-laser {
+  animation: scan-line 2.2s ease-in-out infinite;
+}
+
+/* =========================================================
+   LIGHT / MORNING THEME (الوضع الصباحي) OVERRIDES
+   ========================================================= */
+html.light {
+  color-scheme: light;
+}
+
+html.light body {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+/* Scrollbars in light mode */
+html.light ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+html.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Containers and Cards */
+html.light .bg-slate-950,
+html.light .bg-slate-900,
+html.light .bg-slate-900\/80,
+html.light .bg-slate-900\/70,
+html.light .bg-slate-900\/90 {
+  background-color: #ffffff !important;
+}
+
+html.light .bg-slate-950\/40,
+html.light .bg-slate-950\/60,
+html.light .bg-slate-950\/70,
+html.light .bg-slate-800,
+html.light .bg-slate-800\/40,
+html.light .bg-slate-800\/60 {
+  background-color: #f8fafc !important;
+}
+
+html.light .hover\:bg-slate-800:hover,
+html.light .hover\:bg-slate-800\/30:hover,
+html.light .hover\:bg-slate-800\/40:hover,
+html.light .hover\:bg-slate-800\/60:hover {
+  background-color: #f1f5f9 !important;
+}
+
+/* Borders */
+html.light .border-slate-800,
+html.light .border-slate-800\/80,
+html.light .border-slate-800\/60,
+html.light .border-slate-700,
+html.light .border-slate-700\/80 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Typography in light mode */
+html.light .text-white {
+  color: #0f172a !important;
+}
+
+html.light .text-slate-100 {
+  color: #1e293b !important;
+}
+
+html.light .text-slate-200,
+html.light .text-slate-300 {
+  color: #334155 !important;
+}
+
+html.light .text-slate-400 {
+  color: #64748b !important;
+}
+
+html.light .text-slate-500 {
+  color: #64748b !important;
+}
+
+/* Inputs, Selects, and Textareas */
+html.light input,
+html.light select,
+html.light textarea {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+html.light input:focus,
+html.light select:focus,
+html.light textarea:focus {
+  border-color: #d97706 !important;
+}
+
+html.light input::placeholder,
+html.light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Tables in light mode */
+html.light thead tr {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+}
+
+/* Light mode cards elevation */
+html.light .rounded-3xl,
+html.light .rounded-2xl {
+  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.05);
+}
+
+/* Luxury Header banner in morning mode */
+html.light .bg-gradient-to-r.from-slate-900.via-slate-900 {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 45%, #ffffff 100%) !important;
+  border-color: #fde68a !important;
+}
+
+/* Badges in light mode */
+html.light .bg-slate-800 {
+  background-color: #f1f5f9 !important;
+  color: #334155 !important;
+}
