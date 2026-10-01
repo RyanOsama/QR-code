@@ -1670,6 +1670,7 @@ export const PrintSettingsPage: React.FC<PrintSettingsPageProps> = ({ activeEven
 
   const handleSelectDbTemplate = (tpl: CardTemplateItem) => {
     setSelectedDbTemplateId(tpl.id);
+    const qrSidePos = tpl.default_qr_position === 'right' ? 82 : 18;
     setSettings((prev) => ({
       ...prev,
       customCardImage: tpl.front_image,
@@ -1680,9 +1681,12 @@ export const PrintSettingsPage: React.FC<PrintSettingsPageProps> = ({ activeEven
       cardTheme: 'custom',
       designSource: 'custom_images',
       doubleSidedMode: tpl.back_image ? 'duplex' : 'front_only',
-      customPrimaryColor: tpl.default_primary_color || '#D4AF37',
+      customPrimaryColor: tpl.default_primary_color || '#8C6826',
       customAccentColor: tpl.default_accent_color || '#FFFFFF',
-      qrPosition: tpl.default_qr_position || 'right',
+      qrPosition: tpl.default_qr_position || 'left',
+      customQrX: qrSidePos,
+      customQrY: 50,
+      customQrSize: 28,
       customShowTextOverlay: true,
     }));
     setDetectedDimensions({ width: 1200, height: 500, aspect: 2.4 });
