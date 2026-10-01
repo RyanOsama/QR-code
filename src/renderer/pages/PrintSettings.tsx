@@ -4090,6 +4090,75 @@ export const PrintSettingsPage: React.FC<PrintSettingsPageProps> = ({ activeEven
                                   alt="Front Face"
                                   className="w-full h-full object-contain pointer-events-none select-none"
                                 />
+
+                                {/* Rich Text & Welcome Information Overlay on Background */}
+                                {settings.customShowTextOverlay !== false && (
+                                  <div className="absolute inset-0 z-0 p-3 sm:p-4 flex flex-col justify-between items-center text-center pointer-events-none select-none">
+                                    {/* Top: Welcome Phrase & Event Title / Couple Names */}
+                                    <div className="space-y-0.5 max-w-[85%] mt-1">
+                                      <div
+                                        className="text-[9.5px] sm:text-[11px] font-bold tracking-wide"
+                                        style={{ color: settings.customPrimaryColor || '#8C6826' }}
+                                      >
+                                        {settings.welcomeText || (activeEvent?.eventType === 'graduation' ? 'حَفْلُ تَخَرُّجْ وتكريم' : 'دعوة لحضور حفل زفاف')}
+                                      </div>
+                                      <div
+                                        className="text-[12.5px] sm:text-[15px] font-black leading-tight"
+                                        style={{
+                                          color: settings.customPrimaryColor || '#78350f',
+                                          fontFamily: "'Amiri', 'Traditional Arabic', serif",
+                                        }}
+                                      >
+                                        {activeEvent?.eventType === 'wedding'
+                                          ? ((settings.weddingTitleType || 'couple_names') === 'couple_names'
+                                              ? `${settings.groomName || 'العريس'} & ${settings.brideName || 'العروسة'}`
+                                              : (activeEvent?.name || 'حفل زفاف مبارك'))
+                                          : (activeEvent?.name || 'حفل التكريم والنجاح')}
+                                      </div>
+                                    </div>
+
+                                    {/* Center: Guest Name or Welcome Subtitle */}
+                                    <div className="my-auto max-w-[88%]">
+                                      {currentGuestName ? (
+                                        <div className="space-y-0.5">
+                                          <div className="text-[8px] sm:text-[9.5px] text-slate-800 font-medium">
+                                            {settings.guestPrefixText || 'نتشرف بدعوة المكرم/ـة:'}
+                                          </div>
+                                          <div
+                                            className="text-[11px] sm:text-[13px] font-extrabold px-3 py-0.5 rounded-full inline-block"
+                                            style={{
+                                              color: settings.customPrimaryColor || '#8C6826',
+                                              backgroundColor: 'rgba(255,255,255,0.8)',
+                                              border: '1px solid rgba(212,175,55,0.3)',
+                                            }}
+                                          >
+                                            {currentGuestName}
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div className="text-[9px] sm:text-[10px] text-slate-800 font-medium leading-relaxed max-w-[280px]">
+                                          {settings.customSubtitle || 'يسرنا ويسعدنا حضوركم ومشاركتكم فرحتنا'}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Bottom: Date & Venue */}
+                                    {(settings.venueText || settings.dateText || activeEvent?.venue || activeEvent?.date) && (
+                                      <div className="flex items-center justify-center gap-3 text-[7.5px] sm:text-[8.5px] text-slate-800 font-bold max-w-[92%] mb-1">
+                                        {(settings.venueText || activeEvent?.venue) && (
+                                          <span>📍 {settings.venueText || activeEvent?.venue}</span>
+                                        )}
+                                        {(settings.dateText || activeEvent?.date) && (
+                                          <span>🗓️ {settings.dateText || activeEvent?.date}</span>
+                                        )}
+                                        {settings.timeText && (
+                                          <span>⏰ {settings.timeText}</span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
                                 {settings.customQrSide !== 'back' && (
                                   <div
                                     className={`absolute p-1.5 rounded-xl shadow-2xl -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all ${
@@ -4191,6 +4260,44 @@ export const PrintSettingsPage: React.FC<PrintSettingsPageProps> = ({ activeEven
                                   alt="Back Face"
                                   className="w-full h-full object-contain pointer-events-none select-none"
                                 />
+
+                                {/* Back Face Text Overlay */}
+                                {settings.customShowTextOverlay !== false && (
+                                  <div className="absolute inset-0 z-0 p-3 sm:p-4 flex flex-col justify-between items-center text-center pointer-events-none select-none">
+                                    <div className="space-y-0.5 max-w-[85%] mt-1">
+                                      <div
+                                        className="text-[11px] sm:text-[13px] font-black"
+                                        style={{
+                                          color: settings.customPrimaryColor || '#8C6826',
+                                          fontFamily: "'Amiri', 'Traditional Arabic', serif",
+                                        }}
+                                      >
+                                        {settings.backTitleText || activeEvent?.name || 'دعوة كريمة'}
+                                      </div>
+                                      <div className="text-[8.5px] sm:text-[10px] font-bold text-slate-800">
+                                        {settings.backHeaderText || 'بارك الله لهما وبارك عليهما وجمع بينهما في خير'}
+                                      </div>
+                                    </div>
+
+                                    <div className="my-auto max-w-[85%] text-[8px] sm:text-[9.5px] text-slate-800 leading-relaxed font-medium">
+                                      {settings.backMessageText || 'حضوركم يشرّفنا وتكتمل به فرحتنا وسرورنا'}
+                                    </div>
+
+                                    <div className="mb-1">
+                                      <span
+                                        className="px-3 py-0.5 rounded-full text-[7.5px] sm:text-[8.5px] font-bold inline-block"
+                                        style={{
+                                          backgroundColor: 'rgba(255,255,255,0.85)',
+                                          color: settings.customPrimaryColor || '#8C6826',
+                                          border: `1px solid rgba(212,175,55,0.4)`,
+                                        }}
+                                      >
+                                        {settings.backBadgeText || 'بطاقة دعوة خاصة'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+
                                 {settings.customQrSide === 'back' && (
                                   <div
                                     className={`absolute p-1.5 rounded-xl shadow-2xl -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all ${

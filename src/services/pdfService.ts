@@ -962,8 +962,8 @@ export class PdfService {
 
     let pagesHtml = '';
 
-    // Helper to render custom card cell
-    const renderCustomFace = (imgSrc: string, inv: Invitation | null, showQr: boolean) => {
+    // Helper to render custom card cell with rich text overlay
+    const renderCustomFace = (imgSrc: string, inv: Invitation | null, showQr: boolean, isFront: boolean = true) => {
       if (!inv) {
         return `<div class="card-cell" style="opacity:0;"></div>`;
       }
@@ -971,11 +971,65 @@ export class PdfService {
       const qrX = settings.customQrX ?? 50;
       const qrY = settings.customQrY ?? 65;
       const qrSize = (settings.customQrSize ?? 30) * 1.5;
+      const primaryColor = settings.customPrimaryColor || '#8C6826';
+      const showText = settings.customShowTextOverlay !== false;
+      const guestName = inv.guest_name && inv.guest_name.trim();
+
+      const eventTitle = event?.eventType === 'wedding'
+        ? ((settings.weddingTitleType || 'couple_names') === 'couple_names' ? `${settings.groomName || 'العريس'} & ${settings.brideName || 'العروسة'}` : (event?.name || 'حفل زفاف'))
+        : (event?.name || 'حفل التكريم');
 
       return `
         <div class="card-cell">
           <div style="position:relative; width: ${targetCardW}mm; height: ${targetCardH}mm; max-width: 100%; max-height: 100%; margin:auto; overflow:hidden; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
             <img src="${imgSrc}" style="width:100%; height:100%; object-fit:cover; display:block;" />
+            
+            ${showText && isFront ? `
+              <div style="position:absolute; inset:0; padding:6px 8px; display:flex; flex-direction:column; justify-content:space-between; align-items:center; text-align:center; box-sizing:border-box; pointer-events:none;">
+                <div style="margin-top:1px;">
+                  <div style="font-size:6pt; font-weight:bold; color:${primaryColor};">${settings.welcomeText || (event?.eventType === 'graduation' ? 'حَفْلُ تَخَرُّجْ وتكريم' : 'دعوة لحضور حفل زفاف')}</div>
+                  <div style="font-size:8.5pt; font-weight:900; font-family:'Amiri', serif; color:${primaryColor}; margin-top:1px;">${eventTitle}</div>
+                </div>
+
+                <div style="margin:auto 0;">
+                  ${guestName ? `
+                    <div style="font-size:5.5pt; color:#1e293b; font-weight:bold;">${settings.guestPrefixText || 'نتشرف بدعوة المكرم/ـة:'}</div>
+                    <div style="font-size:7.5pt; font-weight:800; color:${primaryColor}; background:rgba(255,255,255,0.8); padding:1px 6px; border-radius:10px; display:inline-block; margin-top:1px;">${guestName}</div>
+                  ` : `
+                    <div style="font-size:6pt; color:#1e293b; font-weight:500;">${settings.customSubtitle || 'يسرنا ويسعدنا حضوركم ومشاركتكم فرحتنا'}</div>
+                  `}
+                </div>
+
+                <div style="margin-bottom:1px;">
+                  ${(settings.venueText || settings.dateText || event?.venue || event?.date) ? `
+                    <div style="font-size:5pt; color:#1e293b; font-weight:bold; display:flex; gap:6px; justify-content:center;">
+                      ${(settings.venueText || event?.venue) ? `<span>📍 ${settings.venueText || event?.venue}</span>` : ''}
+                      ${(settings.dateText || event?.date) ? `<span>🗓️ ${settings.dateText || event?.date}</span>` : ''}
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+            ` : ''}
+
+            ${showText && !isFront ? `
+              <div style="position:absolute; inset:0; padding:6px 8px; display:flex; flex-direction:column; justify-content:space-between; align-items:center; text-align:center; box-sizing:border-box; pointer-events:none;">
+                <div style="margin-top:2px;">
+                  <div style="font-size:8pt; font-weight:900; font-family:'Amiri', serif; color:${primaryColor};">${settings.backTitleText || event?.name || 'دعوة كريمة'}</div>
+                  <div style="font-size:6pt; font-weight:bold; color:#1e293b; margin-top:1px;">${settings.backHeaderText || 'بارك الله لهما وبارك عليهما'}</div>
+                </div>
+
+                <div style="margin:auto 0; font-size:5.5pt; color:#1e293b; max-width:85%;">
+                  ${settings.backMessageText || 'حضوركم يشرّفنا وتكتمل به فرحتنا'}
+                </div>
+
+                <div style="margin-bottom:2px;">
+                  <div style="display:inline-block; padding:1px 8px; border-radius:10px; background:rgba(255,255,255,0.85); border:1px solid ${primaryColor}40; color:${primaryColor}; font-size:5pt; font-weight:bold;">
+                    ${settings.backBadgeText || 'بطاقة دعوة خاصة'}
+                  </div>
+                </div>
+              </div>
+            ` : ''}
+
             ${showQr ? `
               <div style="position:absolute; left:${qrX}%; top:${qrY}%; transform:translate(-50%, -50%); padding:2.5px; ${settings.customQrBg !== false ? 'background:#fff;' : ''} border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.25); text-align:center;">
                 ${settings.showEventName && event?.name ? `<div style="font-size:5.5pt; font-weight:bold; color:#0f172a; margin-bottom:1.5px; max-width:${qrSize + 30}px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${event.name}</div>` : ''}
@@ -1991,7 +2045,7 @@ export class PdfService {
             for (let c = 0; c < cols; c++) {
               const idx = r * cols + c;
               const inv = pageInvitations[idx] || null;
-              frontCardsHtml += renderCustomFace(settings.customCardImage, inv, qrSide === 'front');
+              frontCardsHtml += renderCustomFace(settings.customCardImage, inv, qrSide === 'front', true);
             }
           }
           pagesHtml += `<div class="page">${frontCardsHtml}</div>`;
@@ -2003,7 +2057,7 @@ export class PdfService {
               const mirroredCol = cols - 1 - c;
               const idx = r * cols + mirroredCol;
               const inv = pageInvitations[idx] || null;
-              backCardsHtml += renderCustomFace(settings.customCardBackImage!, inv, qrSide === 'back');
+              backCardsHtml += renderCustomFace(settings.customCardBackImage!, inv, qrSide === 'back', false);
             }
           }
           pagesHtml += `<div class="page">${backCardsHtml}</div>`;
@@ -2013,7 +2067,7 @@ export class PdfService {
           let backCardsHtml = '';
           for (let i = 0; i < cardsPerPage; i++) {
             const inv = pageInvitations[i] || null;
-            backCardsHtml += renderCustomFace(settings.customCardBackImage!, inv, qrSide === 'back');
+            backCardsHtml += renderCustomFace(settings.customCardBackImage!, inv, qrSide === 'back', false);
           }
           pagesHtml += `<div class="page">${backCardsHtml}</div>`;
           continue;
@@ -2022,7 +2076,7 @@ export class PdfService {
           let frontCardsHtml = '';
           for (let i = 0; i < cardsPerPage; i++) {
             const inv = pageInvitations[i] || null;
-            frontCardsHtml += renderCustomFace(settings.customCardImage, inv, qrSide === 'front');
+            frontCardsHtml += renderCustomFace(settings.customCardImage, inv, qrSide === 'front', true);
           }
           pagesHtml += `<div class="page">${frontCardsHtml}</div>`;
           continue;
