@@ -9,17 +9,21 @@ import { app, BrowserWindow, ipcMain, session, clipboard, shell } from 'electron
 import path from 'path';
 import fs from 'fs';
 import { initDatabase, closeDatabase } from '../database/connection';
-import { EventRepository } from '../database/repositories/eventRepository';
-import { InvitationRepository } from '../database/repositories/invitationRepository';
-import { ScanLogRepository } from '../database/repositories/scanLogRepository';
-import { CheckInService } from '../services/checkInService';
+import { DatabaseDriver } from '../services/databaseDriver';
+import { EnvService } from '../services/envService';
 import { BackupService } from '../database/backupService';
 import { PdfService } from '../services/pdfService';
 import { QrService } from '../services/qrService';
 import { DatabaseProvisioningService } from '../services/databaseProvisioningService';
 import { DatabaseMigrationService } from '../services/databaseMigrationService';
+import { SupabaseService } from '../services/supabaseService';
+import { SystemDeploymentService } from '../services/systemDeploymentService';
+import { LicenseServerService } from '../services/licenseServerService';
+import { DeviceService } from '../services/deviceService';
+import { AppUser, SystemDeploymentConfig, DedicatedLicenseConfig, BillingCycle, TenantSubscription, LicenseType, LicenseStatus } from '../types';
 
 let mainWindow: BrowserWindow | null = null;
+let currentUser: AppUser | null = null;
 
 function createWindow() {
   const iconPath = path.join(process.cwd(), 'public', 'icon.png');
@@ -96,18 +100,6 @@ function createWindow() {
   });
 }
 
-import { SupabaseService } from '../services/supabaseService';
-import { CompanyRepository } from '../database/repositories/companyRepository';
-import { UserRepository } from '../database/repositories/userRepository';
-import { SubscriptionRepository } from '../database/repositories/subscriptionRepository';
-import { SystemDeploymentService } from '../services/systemDeploymentService';
-import { LicenseServerService } from '../services/licenseServerService';
-import { DeviceService } from '../services/deviceService';
-import { CardTemplateService } from '../services/cardTemplateService';
-import { AppUser, SystemDeploymentConfig, DedicatedLicenseConfig, BillingCycle, TenantSubscription, LicenseType, LicenseStatus, Event, Invitation } from '../types';
-
-let currentUser: AppUser | null = null;
-
 function assertAuthenticated(): AppUser {
   if (!currentUser) {
     throw new Error('يجب تسجيل الدخول أولاً لتنفيذ هذه العملية (401 Unauthorized).');
@@ -138,34 +130,7 @@ function assertTenantAccess(companyId?: number | null): number {
 async function assertEventTenantAccess(eventId: number): Promise<void> {
   const user = assertAuthenticated();
   if (user.role === 'SUPER_ADMIN') return;
-  let event = EventRepository.getById(eventId);
-  if (!event && SupabaseService.isCloudMode()) {
-    try {
-      event = await SupabaseService.getEventById(eventId);
-      if (event) {
-        try {
-          const db = require('../database/connection').getDatabase();
-          db.prepare(`
-            INSERT OR REPLACE INTO events (id, company_id, name, date, time, venue, eventType, capacity, status, created_at, updated_at)
-            VALUES (@id, @company_id, @name, @date, @time, @venue, @eventType, @capacity, @status, @created_at, @updated_at)
-          `).run({
-            id: event.id,
-            company_id: event.company_id || null,
-            name: event.name,
-            date: event.date,
-            time: event.time || null,
-            venue: event.venue || null,
-            eventType: event.eventType || 'wedding',
-            capacity: event.capacity,
-            status: event.status,
-            created_at: event.created_at,
-            updated_at: event.updated_at,
-          });
-        } catch (_) {}
-      }
-    } catch (_) {}
-  }
-
+  const event = await DatabaseDriver.getEventById(eventId);
   if (!event) throw new Error('المناسبة المطلوبة غير موجودة');
   if (event.company_id && event.company_id !== user.company_id) {
     throw new Error('غير مصرح لك بالوصول لمناسبات شركة أخرى (403 Forbidden).');
@@ -175,25 +140,15 @@ async function assertEventTenantAccess(eventId: number): Promise<void> {
 async function assertInvitationTenantAccess(invitationId: number): Promise<void> {
   const user = assertAuthenticated();
   if (user.role === 'SUPER_ADMIN') return;
-  let inv = InvitationRepository.getById(invitationId);
-  if (!inv && SupabaseService.isCloudMode()) {
-    try {
-      const client = SupabaseService.getClient();
-      if (client) {
-        const { data } = await client.from('invitations').select('*').eq('id', invitationId).maybeSingle();
-        if (data) inv = data as Invitation;
-      }
-    } catch (_) {}
-  }
-
+  const inv = await DatabaseDriver.getInvitationById(invitationId);
   if (!inv) throw new Error('الدعوة المطلوبة غير موجودة');
   await assertEventTenantAccess(inv.event_id);
 }
 
-function assertUserTenantAccess(targetUserId: number): void {
+async function assertUserTenantAccess(targetUserId: number): Promise<void> {
   const user = assertAuthenticated();
   if (user.role === 'SUPER_ADMIN') return;
-  const targetUser = UserRepository.getById(targetUserId);
+  const targetUser = await DatabaseDriver.getUserById(targetUserId);
   if (!targetUser) throw new Error('المستخدم المطلوب غير موجود');
   if (targetUser.company_id && targetUser.company_id !== user.company_id) {
     throw new Error('غير مصرح لك بإدارة مستخدمي شركة أخرى (403 Forbidden).');
@@ -210,53 +165,16 @@ function assertDedicatedOrSuperAdmin(): void {
   throw new Error('هذه العملية مخصصة لمسؤول النظام العام أو المشرف على النسخة المخصصة فقط (403 Forbidden).');
 }
 
-let lastFallbackLogTime = 0;
-function logCloudFallback(operation: string, err: any) {
-  SupabaseService.markCloudUnreachable(err);
-  const now = Date.now();
-  if (now - lastFallbackLogTime > 15000) {
-    const msg = err?.message || (typeof err === 'string' ? err : 'Connection error');
-    console.warn(`[Cloud Notice] ${operation} (${msg}) - Switched to local SQLite instantly.`);
-    lastFallbackLogTime = now;
-  }
-}
-
-// Register all IPC Handlers
+// Register all IPC Handlers using single-source DatabaseDriver
 function registerIpcHandlers() {
   // Auth
   ipcMain.handle('auth:login', async (_, username, password) => {
     const cleanUsername = (username || '').trim();
-    const isSuperAdminUser = cleanUsername.toLowerCase() === 'ryan_osama' || cleanUsername.toLowerCase() === 'admin';
-
-    // 1. If in cloud mode, authenticate with Supabase
-    if (SupabaseService.isCloudMode()) {
-      try {
-        const res = await SupabaseService.login(cleanUsername, password);
-        if (res.success && res.user) {
-          currentUser = res.user;
-          return res;
-        }
-        // If Supabase returned an explicit failure message and it's not the Super Admin account, return Supabase result
-        if (res && !res.success && !isSuperAdminUser) {
-          return res;
-        }
-      } catch (cloudErr) {
-        logCloudFallback('auth:login', cloudErr);
-      }
+    const res = await DatabaseDriver.login(cleanUsername, password);
+    if (res.success && res.user) {
+      currentUser = res.user;
     }
-
-    // 2. Local fallback (e.g. for Super Admin or local offline mode)
-    const localRes = UserRepository.login(cleanUsername, password);
-    if (localRes.success && localRes.user) {
-      currentUser = localRes.user;
-      return localRes;
-    }
-
-    if (localRes && !localRes.success && localRes.error) {
-      return localRes;
-    }
-
-    return { success: false, error: 'اسم المستخدم أو كلمة المرور غير صحيحة' };
+    return res;
   });
 
   ipcMain.handle('auth:changePassword', async (_, userId, newPassword) => {
@@ -267,19 +185,7 @@ function registerIpcHandlers() {
     if (!newPassword || typeof newPassword !== 'string' || newPassword.trim().length < 4) {
       return { success: false, error: 'كلمة المرور يجب أن لا تقل عن 4 خانات' };
     }
-    if (SupabaseService.isCloudMode()) {
-      try {
-        const res = await SupabaseService.changePassword(userId, newPassword);
-        if (res.success) {
-          if (currentUser && currentUser.id === userId) {
-            currentUser.must_change_password = false;
-            currentUser.temp_password = null;
-          }
-          return res;
-        }
-      } catch (_) {}
-    }
-    const res = UserRepository.changePassword(userId, newPassword);
+    const res = await DatabaseDriver.changePassword(userId, newPassword);
     if (res.success && currentUser && currentUser.id === userId) {
       currentUser.must_change_password = false;
       currentUser.temp_password = null;
@@ -297,62 +203,27 @@ function registerIpcHandlers() {
   // Companies (Super Admin Only)
   ipcMain.handle('companies:getAll', async () => {
     assertSuperAdmin();
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.getCompanies();
-      } catch (err) {
-        logCloudFallback('companies:getAll', err);
-      }
-    }
-    return CompanyRepository.getAll();
+    return DatabaseDriver.getCompanies();
   });
 
   ipcMain.handle('companies:create', async (_, data) => {
     assertSuperAdmin();
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.createCompany(data);
-      } catch (err) {
-        logCloudFallback('companies:create', err);
-      }
-    }
-    return CompanyRepository.create(data);
+    return DatabaseDriver.createCompany(data);
   });
 
   ipcMain.handle('companies:update', async (_, id, data) => {
     assertSuperAdmin();
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.updateCompany(id, data);
-      } catch (err) {
-        logCloudFallback('companies:update', err);
-      }
-    }
-    return CompanyRepository.update(id, data);
+    return DatabaseDriver.updateCompany(id, data);
   });
 
   ipcMain.handle('companies:delete', async (_, id) => {
     assertSuperAdmin();
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.deleteCompany(id);
-      } catch (err) {
-        logCloudFallback('companies:delete', err);
-      }
-    }
-    return CompanyRepository.delete(id);
+    return DatabaseDriver.deleteCompany(id);
   });
 
   ipcMain.handle('companies:resetOwnerPassword', async (_, companyId) => {
     assertSuperAdmin();
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.resetCompanyOwnerPassword(companyId);
-      } catch (err) {
-        logCloudFallback('companies:resetOwnerPassword', err);
-      }
-    }
-    return CompanyRepository.resetOwnerPassword(companyId);
+    return DatabaseDriver.resetCompanyOwnerPassword(companyId);
   });
 
   // Employees (Company Owner / Super Admin)
@@ -361,14 +232,7 @@ function registerIpcHandlers() {
     if (currentUser?.role === 'EMPLOYEE') {
       throw new Error('غير مصرح للموظفين بإدارة قائمة الموظفين (403 Forbidden).');
     }
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.getEmployees(validCompanyId);
-      } catch (err) {
-        logCloudFallback('employees:getAll', err);
-      }
-    }
-    return UserRepository.getEmployees(validCompanyId);
+    return DatabaseDriver.getEmployees(validCompanyId);
   });
 
   ipcMain.handle('employees:create', async (_, companyId, data) => {
@@ -379,114 +243,34 @@ function registerIpcHandlers() {
     if (!data?.username || !data?.full_name) {
       return { success: false, error: 'يرجى تزويد اسم المستخدم والاسم الكامل' };
     }
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.createEmployee(validCompanyId, data);
-      } catch (err) {
-        logCloudFallback('employees:create', err);
-      }
-    }
-    return UserRepository.createEmployee(validCompanyId, data);
+    return DatabaseDriver.createEmployee(validCompanyId, data);
   });
 
   ipcMain.handle('employees:delete', async (_, userId) => {
-    assertUserTenantAccess(userId);
+    await assertUserTenantAccess(userId);
     if (currentUser?.role === 'EMPLOYEE') {
       throw new Error('غير مصرح للموظفين بحذف الموظفين (403 Forbidden).');
     }
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.deleteEmployee(userId);
-      } catch (err) {
-        logCloudFallback('employees:delete', err);
-      }
-    }
-    return UserRepository.deleteEmployee(userId);
+    return DatabaseDriver.deleteEmployee(userId);
   });
 
   ipcMain.handle('employees:resetPassword', async (_, userId) => {
-    assertUserTenantAccess(userId);
+    await assertUserTenantAccess(userId);
     if (currentUser?.role === 'EMPLOYEE') {
       throw new Error('غير مصرح للموظفين بإعادة تعيين كلمات المرور (403 Forbidden).');
     }
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.resetEmployeePassword(userId);
-      } catch (err) {
-        logCloudFallback('employees:resetPassword', err);
-      }
-    }
-    return UserRepository.resetEmployeePassword(userId);
+    return DatabaseDriver.resetEmployeePassword(userId);
   });
 
   // Events
   ipcMain.handle('events:getAll', async (_, companyId) => {
     const validCompanyId = currentUser ? assertTenantAccess(companyId) : companyId;
-    if (SupabaseService.isCloudMode()) {
-      try {
-        const events = await SupabaseService.getEvents(validCompanyId);
-        try {
-          const db = require('../database/connection').getDatabase();
-          const insertStmt = db.prepare(`
-            INSERT OR REPLACE INTO events (id, company_id, name, date, time, venue, eventType, capacity, status, created_at, updated_at)
-            VALUES (@id, @company_id, @name, @date, @time, @venue, @eventType, @capacity, @status, @created_at, @updated_at)
-          `);
-          for (const ev of events) {
-            insertStmt.run({
-              id: ev.id,
-              company_id: ev.company_id || null,
-              name: ev.name,
-              date: ev.date,
-              time: ev.time || null,
-              venue: ev.venue || null,
-              eventType: ev.eventType || 'wedding',
-              capacity: ev.capacity,
-              status: ev.status,
-              created_at: ev.created_at,
-              updated_at: ev.updated_at,
-            });
-          }
-        } catch (_) {}
-        return events;
-      } catch (err) {
-        logCloudFallback('events:getAll', err);
-      }
-    }
-    return EventRepository.getAll(validCompanyId);
+    return DatabaseDriver.getEvents(validCompanyId);
   });
 
   ipcMain.handle('events:getActive', async (_, companyId) => {
     const validCompanyId = currentUser ? assertTenantAccess(companyId) : companyId;
-    if (SupabaseService.isCloudMode()) {
-      try {
-        const active = await SupabaseService.getActiveEvent(validCompanyId);
-        if (active) {
-          try {
-            const db = require('../database/connection').getDatabase();
-            db.prepare(`
-              INSERT OR REPLACE INTO events (id, company_id, name, date, time, venue, eventType, capacity, status, created_at, updated_at)
-              VALUES (@id, @company_id, @name, @date, @time, @venue, @eventType, @capacity, @status, @created_at, @updated_at)
-            `).run({
-              id: active.id,
-              company_id: active.company_id || null,
-              name: active.name,
-              date: active.date,
-              time: active.time || null,
-              venue: active.venue || null,
-              eventType: active.eventType || 'wedding',
-              capacity: active.capacity,
-              status: active.status,
-              created_at: active.created_at,
-              updated_at: active.updated_at,
-            });
-          } catch (_) {}
-        }
-        return active;
-      } catch (err) {
-        logCloudFallback('events:getActive', err);
-      }
-    }
-    return EventRepository.getActive(validCompanyId);
+    return DatabaseDriver.getActiveEvent(validCompanyId);
   });
 
   ipcMain.handle('events:create', async (_, data) => {
@@ -498,34 +282,7 @@ function registerIpcHandlers() {
       ...data,
       company_id: currentUser?.role === 'SUPER_ADMIN' ? (data.company_id || currentUser.company_id) : currentUser?.company_id,
     };
-    if (SupabaseService.isCloudMode()) {
-      try {
-        const created = await SupabaseService.createEvent(scopedData);
-        try {
-          const db = require('../database/connection').getDatabase();
-          db.prepare(`
-            INSERT OR REPLACE INTO events (id, company_id, name, date, time, venue, eventType, capacity, status, created_at, updated_at)
-            VALUES (@id, @company_id, @name, @date, @time, @venue, @eventType, @capacity, @status, @created_at, @updated_at)
-          `).run({
-            id: created.id,
-            company_id: created.company_id || null,
-            name: created.name,
-            date: created.date,
-            time: created.time || null,
-            venue: created.venue || null,
-            eventType: created.eventType || 'wedding',
-            capacity: created.capacity,
-            status: created.status,
-            created_at: created.created_at,
-            updated_at: created.updated_at,
-          });
-        } catch (_) {}
-        return created;
-      } catch (err) {
-        logCloudFallback('events:create', err);
-      }
-    }
-    return EventRepository.create(scopedData);
+    return DatabaseDriver.createEvent(scopedData);
   });
 
   ipcMain.handle('events:update', async (_, id, data) => {
@@ -533,34 +290,12 @@ function registerIpcHandlers() {
     if (currentUser?.role === 'EMPLOYEE') {
       throw new Error('غير مصرح للموظفين بتعديل بيانات المناسبات (403 Forbidden).');
     }
-    if (SupabaseService.isCloudMode()) {
-      try {
-        const updated = await SupabaseService.updateEvent(id, data);
-        try {
-          EventRepository.update(id, data);
-        } catch (_) {}
-        return updated;
-      } catch (err) {
-        logCloudFallback('events:update', err);
-      }
-    }
-    return EventRepository.update(id, data);
+    return DatabaseDriver.updateEvent(id, data);
   });
 
   ipcMain.handle('events:setActive', async (_, id) => {
     await assertEventTenantAccess(id);
-    if (SupabaseService.isCloudMode()) {
-      try {
-        await SupabaseService.setActiveEvent(id);
-        try {
-          EventRepository.setActive(id);
-        } catch (_) {}
-        return;
-      } catch (err) {
-        logCloudFallback('events:setActive', err);
-      }
-    }
-    return EventRepository.setActive(id);
+    return DatabaseDriver.setActiveEvent(id);
   });
 
   ipcMain.handle('events:delete', async (_, id) => {
@@ -568,44 +303,18 @@ function registerIpcHandlers() {
     if (currentUser?.role === 'EMPLOYEE') {
       throw new Error('غير مصرح للموظفين بحذف المناسبات (403 Forbidden).');
     }
-    if (SupabaseService.isCloudMode()) {
-      try {
-        const res = await SupabaseService.deleteEvent(id);
-        try {
-          EventRepository.delete(id);
-        } catch (_) {}
-        return res;
-      } catch (err) {
-        logCloudFallback('events:delete', err);
-      }
-    }
-    EventRepository.delete(id);
-    return { success: true };
+    return DatabaseDriver.deleteEvent(id);
   });
 
   ipcMain.handle('events:getStats', async (_, eventId) => {
     await assertEventTenantAccess(eventId);
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.getEventStats(eventId);
-      } catch (err) {
-        logCloudFallback('events:getStats', err);
-      }
-    }
-    return EventRepository.getStats(eventId);
+    return DatabaseDriver.getEventStats(eventId);
   });
 
   // Invitations
   ipcMain.handle('invitations:getByEvent', async (_, eventId, filter) => {
     await assertEventTenantAccess(eventId);
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.getInvitations(eventId, filter);
-      } catch (err) {
-        logCloudFallback('invitations:getByEvent', err);
-      }
-    }
-    return InvitationRepository.getByEventId(eventId, filter);
+    return DatabaseDriver.getInvitations(eventId, filter);
   });
 
   ipcMain.handle('invitations:generateBatch', async (_, eventId, count, guestNames, graduateAllocations) => {
@@ -614,14 +323,7 @@ function registerIpcHandlers() {
       throw new Error('غير مصرح للموظفين بتوليد دفعات دعوات جديدة (403 Forbidden).');
     }
     const safeCount = Math.max(1, Math.min(Number(count) || 1, 10000));
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.generateBatch(eventId, safeCount, guestNames, graduateAllocations);
-      } catch (err) {
-        logCloudFallback('invitations:generateBatch', err);
-      }
-    }
-    return InvitationRepository.generateBatch(eventId, safeCount, guestNames, graduateAllocations);
+    return DatabaseDriver.generateBatch(eventId, safeCount, guestNames, graduateAllocations);
   });
 
   ipcMain.handle('invitations:addBatch', async (_, eventId, count, guestNames) => {
@@ -630,26 +332,12 @@ function registerIpcHandlers() {
       throw new Error('غير مصرح للموظفين بزيادة سعة المناسبة وتوليد دعوات (403 Forbidden).');
     }
     const safeCount = Math.max(1, Math.min(Number(count) || 1, 10000));
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.addInvitationsToEvent(eventId, safeCount, guestNames);
-      } catch (err) {
-        logCloudFallback('invitations:addBatch', err);
-      }
-    }
-    return InvitationRepository.addBatch(eventId, safeCount, guestNames);
+    return DatabaseDriver.addBatch(eventId, safeCount, guestNames);
   });
 
   ipcMain.handle('invitations:updateGuestName', async (_, invitationId, guestName) => {
     await assertInvitationTenantAccess(invitationId);
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.updateGuestName(invitationId, guestName);
-      } catch (err) {
-        logCloudFallback('invitations:updateGuestName', err);
-      }
-    }
-    return InvitationRepository.updateGuestName(invitationId, guestName);
+    return DatabaseDriver.updateGuestName(invitationId, guestName);
   });
 
   ipcMain.handle('invitations:delete', async (_, invitationId) => {
@@ -657,14 +345,7 @@ function registerIpcHandlers() {
     if (currentUser?.role === 'EMPLOYEE') {
       throw new Error('غير مصرح للموظفين بحذف الدعوات الفردية (403 Forbidden).');
     }
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.deleteInvitation(invitationId);
-      } catch (err) {
-        logCloudFallback('invitations:delete', err);
-      }
-    }
-    return InvitationRepository.delete(invitationId);
+    return DatabaseDriver.deleteInvitation(invitationId);
   });
 
   ipcMain.handle('invitations:regenerateToken', async (_, invitationId) => {
@@ -672,14 +353,7 @@ function registerIpcHandlers() {
     if (currentUser?.role === 'EMPLOYEE') {
       throw new Error('غير مصرح للموظفين بإعادة توليد رموز الدعوات (403 Forbidden).');
     }
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.regenerateToken(invitationId);
-      } catch (err) {
-        logCloudFallback('invitations:regenerateToken', err);
-      }
-    }
-    return InvitationRepository.regenerateToken(invitationId);
+    return DatabaseDriver.regenerateToken(invitationId);
   });
 
   ipcMain.handle('invitations:resetUsed', async (_, eventId) => {
@@ -687,14 +361,7 @@ function registerIpcHandlers() {
     if (currentUser?.role === 'EMPLOYEE') {
       throw new Error('غير مصرح للموظفين بتصفير سجلات الدخول (403 Forbidden).');
     }
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.resetUsedInvitations(eventId);
-      } catch (err) {
-        logCloudFallback('invitations:resetUsed', err);
-      }
-    }
-    return InvitationRepository.resetUsedByEvent(eventId);
+    return DatabaseDriver.resetUsedInvitations(eventId);
   });
 
   ipcMain.handle('invitations:resetSingle', async (_, invitationId) => {
@@ -702,42 +369,21 @@ function registerIpcHandlers() {
     if (currentUser?.role === 'EMPLOYEE') {
       throw new Error('غير مصرح للموظفين بتصفير حالة الدعوة (403 Forbidden).');
     }
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.resetSingleInvitation(invitationId);
-      } catch (err) {
-        logCloudFallback('invitations:resetSingle', err);
-      }
-    }
-    return InvitationRepository.resetSingleInvitation(invitationId);
+    return DatabaseDriver.resetSingleInvitation(invitationId);
   });
 
   // Atomic Check-in
   ipcMain.handle('checkIn:verify', async (_, token, eventId, deviceName, scannedBy) => {
     await assertEventTenantAccess(eventId);
     const scannerName = scannedBy || currentUser?.full_name || 'مسؤول البوابة';
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.checkIn(token, eventId, deviceName, scannerName);
-      } catch (err) {
-        logCloudFallback('checkIn:verify', err);
-      }
-    }
-    return CheckInService.verifyAndCheckIn(token, eventId, deviceName, scannerName);
+    return DatabaseDriver.checkIn(token, eventId, deviceName, scannerName);
   });
 
   // Scan Logs
   ipcMain.handle('scanLogs:getByEvent', async (_, eventId, limit) => {
     await assertEventTenantAccess(eventId);
     const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 5000));
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.getScanLogs(eventId, safeLimit);
-      } catch (err) {
-        logCloudFallback('scanLogs:getByEvent', err);
-      }
-    }
-    return ScanLogRepository.getByEventId(eventId, safeLimit);
+    return DatabaseDriver.getScanLogs(eventId, safeLimit);
   });
 
   // Database Backup / Restore (Local SQLite)
@@ -750,7 +396,7 @@ function registerIpcHandlers() {
     return BackupService.restoreDatabase();
   });
 
-  // Cloud Sync & Legacy Configuration (Protected)
+  // Cloud Sync & Configuration
   ipcMain.handle('cloud:getConfig', () => {
     return SupabaseService.getConfig();
   });
@@ -781,69 +427,33 @@ function registerIpcHandlers() {
 
   ipcMain.handle('subscriptions:getAll', async () => {
     assertSuperAdmin();
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.getTenantSubscriptions();
-      } catch (err) {
-        logCloudFallback('subscriptions:getAll', err);
-      }
-    }
-    return SubscriptionRepository.getAll();
+    return DatabaseDriver.getTenantSubscriptions();
   });
 
   ipcMain.handle('subscriptions:getForCompany', async (_, companyId?: number) => {
     const targetCompanyId = companyId || currentUser?.company_id;
     if (!targetCompanyId) return null;
 
-    // Enforce tenant isolation: non-super-admins can only view their own company's subscription
     if (currentUser?.role !== 'SUPER_ADMIN' && currentUser?.company_id !== targetCompanyId) {
       throw new Error('غير مصرح لك بعرض بيانات اشتراك شركة أخرى (403 Forbidden).');
     }
 
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.getCompanySubscription(targetCompanyId);
-      } catch (err) {
-        logCloudFallback('subscriptions:getForCompany', err);
-      }
-    }
-    return SubscriptionRepository.getByCompanyId(targetCompanyId);
+    return DatabaseDriver.getCompanySubscription(targetCompanyId);
   });
 
   ipcMain.handle('subscriptions:update', async (_, companyId: number, data: Partial<TenantSubscription>) => {
     assertSuperAdmin();
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.updateTenantSubscription(companyId, data);
-      } catch (err) {
-        logCloudFallback('subscriptions:update', err);
-      }
-    }
-    return SubscriptionRepository.update(companyId, data);
+    return DatabaseDriver.updateTenantSubscription(companyId, data);
   });
 
   ipcMain.handle('subscriptions:renew', async (_, companyId: number, durationMonths: number, billingCycle?: BillingCycle) => {
     assertSuperAdmin();
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.renewTenantSubscription(companyId, durationMonths, billingCycle);
-      } catch (err) {
-        logCloudFallback('subscriptions:renew', err);
-      }
-    }
-    return SubscriptionRepository.renew(companyId, durationMonths, billingCycle);
+    return DatabaseDriver.renewTenantSubscription(companyId, durationMonths, billingCycle);
   });
 
   ipcMain.handle('subscriptions:extend', async (_, companyId: number, durationMonths: number) => {
     assertSuperAdmin();
-    if (SupabaseService.isCloudMode()) {
-      try {
-        return await SupabaseService.extendTenantSubscription(companyId, durationMonths);
-      } catch (err) {
-        logCloudFallback('subscriptions:extend', err);
-      }
-    }
-    return SubscriptionRepository.extend(companyId, durationMonths);
+    return DatabaseDriver.extendTenantSubscription(companyId, durationMonths);
   });
 
   // Commercial Mode & Dedicated License Activation
@@ -957,7 +567,6 @@ function registerIpcHandlers() {
     return SystemDeploymentService.saveDedicatedLicense(license);
   });
 
-
   // PDF Export and Print
   ipcMain.handle('pdf:export', (_, data) =>
     PdfService.exportToPdf(data.event, data.invitations, data.printSettings)
@@ -988,38 +597,45 @@ function registerIpcHandlers() {
     }
   });
 
-  // Card Templates Management
+  // Card Templates Management (Delegates cleanly to DatabaseDriver)
   ipcMain.handle('cardTemplates:getAll', async (_, filter) => {
-    return CardTemplateService.getTemplates(filter);
+    return DatabaseDriver.getCardTemplates(filter);
   });
 
   ipcMain.handle('cardTemplates:create', async (_, data) => {
     assertSuperAdmin();
-    return CardTemplateService.createTemplate(data);
+    return DatabaseDriver.createCardTemplate(data);
   });
 
   ipcMain.handle('cardTemplates:update', async (_, id: string, data) => {
     assertSuperAdmin();
-    return CardTemplateService.updateTemplate(id, data);
+    return DatabaseDriver.updateCardTemplate(id, data);
   });
 
   ipcMain.handle('cardTemplates:delete', async (_, id: string) => {
     assertSuperAdmin();
-    return CardTemplateService.deleteTemplate(id);
+    return DatabaseDriver.deleteCardTemplate(id);
   });
 
   ipcMain.handle('cardTemplates:toggleActive', async (_, id: string, isActive: boolean) => {
     assertSuperAdmin();
-    return CardTemplateService.toggleActive(id, isActive);
+    return DatabaseDriver.toggleCardTemplateActive(id, isActive);
   });
 }
 
-
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   try {
     initDatabase();
   } catch (dbErr) {
     console.error('Failed to initialize local SQLite database:', dbErr);
+  }
+
+  // Initialize and identify the active database driver (Cloud vs Local) on startup
+  try {
+    const dbStatus = await DatabaseDriver.init();
+    console.log(`🚀 [App Startup] Database Initialized: ${dbStatus.statusMessage} (Mode: ${dbStatus.activeSource})`);
+  } catch (err) {
+    console.error('DatabaseDriver init error:', err);
   }
 
   try {
