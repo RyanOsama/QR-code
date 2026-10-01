@@ -38,6 +38,7 @@ export const ScanLogsPage: React.FC<ScanLogsProps> = ({ activeEvent, scanLogs, o
       !term ||
       (log.guest_name && log.guest_name.toLowerCase().includes(term)) ||
       (log.invitation_number && String(log.invitation_number).includes(term)) ||
+      (log.scanned_by_name && log.scanned_by_name.toLowerCase().includes(term)) ||
       (log.notes && log.notes.toLowerCase().includes(term));
 
     return matchesResult && matchesSearch;
@@ -45,13 +46,14 @@ export const ScanLogsPage: React.FC<ScanLogsProps> = ({ activeEvent, scanLogs, o
 
   const exportLogsAsCsv = () => {
     if (scanLogs.length === 0) return;
-    const headers = ['المعرف', 'رقم الدعوة', 'اسم المدعو', 'النتيجة', 'الوقت', 'الجهاز', 'ملاحظات'];
+    const headers = ['المعرف', 'رقم الدعوة', 'اسم المدعو', 'النتيجة', 'الوقت', 'الموظف الفاحص', 'الجهاز', 'ملاحظات'];
     const rows = scanLogs.map((l) => [
       l.id,
       l.invitation_number ? `#${l.invitation_number}` : '-',
       l.guest_name || 'بدون اسم',
       l.result,
       new Date(l.scanned_at).toLocaleString('ar-SA'),
+      l.scanned_by_name || '—',
       l.device_name || '',
       l.notes || '',
     ]);
@@ -156,6 +158,7 @@ export const ScanLogsPage: React.FC<ScanLogsProps> = ({ activeEvent, scanLogs, o
                 <th className="py-3 px-4">رقم الدعوة</th>
                 <th className="py-3 px-4">اسم المدعو</th>
                 <th className="py-3 px-4">توقيت المسح</th>
+                <th className="py-3 px-4">الموظف الفاحص</th>
                 <th className="py-3 px-4">جهاز المسح</th>
                 <th className="py-3 px-4">تفاصيل / ملاحظات</th>
               </tr>
@@ -163,7 +166,7 @@ export const ScanLogsPage: React.FC<ScanLogsProps> = ({ activeEvent, scanLogs, o
             <tbody className="divide-y divide-slate-800/60 text-slate-300">
               {filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-12 text-slate-500 text-xs">
+                  <td colSpan={7} className="text-center py-12 text-slate-500 text-xs">
                     لا توجد سجلات مسح تطابق الفلتر.
                   </td>
                 </tr>
@@ -211,6 +214,16 @@ export const ScanLogsPage: React.FC<ScanLogsProps> = ({ activeEvent, scanLogs, o
 
                       <td className="py-3 px-4 font-mono text-[11px] text-slate-400">
                         {new Date(log.scanned_at).toLocaleString('ar-SA')}
+                      </td>
+
+                      <td className="py-3 px-4 text-xs font-semibold">
+                        {log.scanned_by_name ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-800/80 text-amber-300 border border-slate-700/60">
+                            {log.scanned_by_name}
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">—</span>
+                        )}
                       </td>
 
                       <td className="py-3 px-4 text-slate-400 text-[11px]">

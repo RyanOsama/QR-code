@@ -2,8 +2,12 @@ import { getDatabase } from '../connection';
 import { Event, EventStats } from '../../types';
 
 export class EventRepository {
-  static getAll(): Event[] {
+  static getAll(companyId?: number | null): Event[] {
     const db = getDatabase();
+    if (companyId) {
+      const stmt = db.prepare(`SELECT * FROM events WHERE company_id = ? ORDER BY created_at DESC`);
+      return stmt.all(companyId) as Event[];
+    }
     const stmt = db.prepare(`SELECT * FROM events ORDER BY created_at DESC`);
     return stmt.all() as Event[];
   }
@@ -15,8 +19,17 @@ export class EventRepository {
     return (row as Event) || null;
   }
 
-  static getActive(): Event | null {
+  static getActive(companyId?: number | null): Event | null {
     const db = getDatabase();
+    if (companyId) {
+      const stmt = db.prepare(`SELECT * FROM events WHERE company_id = ? AND status = 'ACTIVE' ORDER BY updated_at DESC LIMIT 1`);
+      const row = stmt.get(companyId);
+      if (row) return row as Event;
+
+      const fallback = db.prepare(`SELECT * FROM events WHERE company_id = ? ORDER BY created_at DESC LIMIT 1`).get(companyId);
+      return (fallback as Event) || null;
+    }
+
     const stmt = db.prepare(`SELECT * FROM events WHERE status = 'ACTIVE' ORDER BY updated_at DESC LIMIT 1`);
     const row = stmt.get();
     if (row) return row as Event;
@@ -27,18 +40,23 @@ export class EventRepository {
     return (firstRow as Event) || null;
   }
 
-  static create(data: { name: string; date: string; time?: string; venue?: string; eventType?: string; capacity: number }): Event {
+  static create(data: { name: string; date: string; time?: string; venue?: string; eventType?: string; capacity: number; company_id?: number | null }): Event {
     const db = getDatabase();
     const now = new Date().toISOString();
 
     const insert = db.prepare(`
-      INSERT INTO events (name, date, time, venue, eventType, capacity, status, created_at, updated_at)
-      VALUES (@name, @date, @time, @venue, @eventType, @capacity, 'ACTIVE', @created_at, @updated_at)
+      INSERT INTO events (company_id, name, date, time, venue, eventType, capacity, status, created_at, updated_at)
+      VALUES (@company_id, @name, @date, @time, @venue, @eventType, @capacity, 'ACTIVE', @created_at, @updated_at)
     `);
 
     const transaction = db.transaction(() => {
-      db.prepare(`UPDATE events SET status = 'ARCHIVED' WHERE status = 'ACTIVE'`).run();
+      if (data.company_id) {
+        db.prepare(`UPDATE events SET status = 'ARCHIVED' WHERE company_id = ? AND status = 'ACTIVE'`).run(data.company_id);
+      } else {
+        db.prepare(`UPDATE events SET status = 'ARCHIVED' WHERE status = 'ACTIVE'`).run();
+      }
       const result = insert.run({
+        company_id: data.company_id || null,
         name: data.name.trim(),
         date: data.date,
         time: data.time || null,
@@ -54,11 +72,27 @@ export class EventRepository {
     return transaction();
   }
 
+  static increaseCapacity(eventId: number, additionalCount: number): number {
+    const db = getDatabase();
+    const event = this.getById(eventId);
+    if (!event) throw new Error('المناسبة غير موجودة');
+
+    const newCapacity = event.capacity + additionalCount;
+    const now = new Date().toISOString();
+    db.prepare(`UPDATE events SET capacity = ?, updated_at = ? WHERE id = ?`).run(newCapacity, now, eventId);
+    return newCapacity;
+  }
+
   static setActive(id: number): void {
     const db = getDatabase();
     const now = new Date().toISOString();
+    const event = this.getById(id);
     const transaction = db.transaction(() => {
-      db.prepare(`UPDATE events SET status = 'ARCHIVED'`).run();
+      if (event && event.company_id) {
+        db.prepare(`UPDATE events SET status = 'ARCHIVED' WHERE company_id = ?`).run(event.company_id);
+      } else {
+        db.prepare(`UPDATE events SET status = 'ARCHIVED'`).run();
+      }
       db.prepare(`UPDATE events SET status = 'ACTIVE', updated_at = ? WHERE id = ?`).run(now, id);
     });
     transaction();

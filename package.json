@@ -9,10 +9,42 @@
     "build": "tsc && vite build",
     "electron:dev": "vite",
     "start": "electron .",
-    "test": "tsx src/tests/systemTest.ts && tsx src/tests/pdfVerificationTest.ts && tsx src/tests/graduateAllocationAndFilterTest.ts",
+    "test": "tsx src/tests/systemTest.ts && tsx src/tests/pdfVerificationTest.ts && tsx src/tests/graduateAllocationAndFilterTest.ts && tsx src/tests/presetDuplexTest.ts && tsx src/tests/cardAlignmentAndEventDetailsTest.ts && tsx src/tests/customImageOutpaintTest.ts && tsx src/tests/deploymentAndLicensingTest.ts && tsx src/tests/commercialLicensingAndSaaSTest.ts && tsx src/tests/saasSubscriptionFlowTest.ts && tsx src/tests/superAdminManagementTest.ts && tsx src/tests/dedicatedFirstRunSetupTest.ts && tsx src/tests/dedicatedDatabaseProvisioningTest.ts && tsx src/tests/dedicatedOnboardingTest.ts && tsx src/tests/dedicatedMigrationTest.ts && tsx src/tests/licenseServerIntegrationTest.ts && tsx src/tests/licenseAndDeviceManagementTest.ts && tsx src/tests/securityHardeningTest.ts && tsx src/tests/finalProductionVerificationTest.ts",
+    "test:final-production": "tsx src/tests/finalProductionVerificationTest.ts",
+    "test:security": "tsx src/tests/securityHardeningTest.ts",
+    "test:super-admin": "tsx src/tests/superAdminManagementTest.ts",
+    "test:saas-subscription": "tsx src/tests/saasSubscriptionFlowTest.ts",
     "test:system": "tsx src/tests/systemTest.ts",
     "test:pdf": "tsx src/tests/pdfVerificationTest.ts",
-    "test:graduates": "tsx src/tests/graduateAllocationAndFilterTest.ts"
+    "test:graduates": "tsx src/tests/graduateAllocationAndFilterTest.ts",
+    "test:licensing": "tsx src/tests/deploymentAndLicensingTest.ts",
+    "test:commercial": "tsx src/tests/commercialLicensingAndSaaSTest.ts",
+    "test:firstrun": "tsx src/tests/dedicatedFirstRunSetupTest.ts",
+    "test:provisioning": "tsx src/tests/dedicatedDatabaseProvisioningTest.ts",
+    "test:onboarding": "tsx src/tests/dedicatedOnboardingTest.ts",
+    "test:migration": "tsx src/tests/dedicatedMigrationTest.ts",
+    "test:license-integration": "tsx src/tests/licenseServerIntegrationTest.ts",
+    "test:license-mgmt": "tsx src/tests/licenseAndDeviceManagementTest.ts",
+    "build:win": "tsc && vite build && npx electron-builder --win --config.npmRebuild=false"
+  },
+  "build": {
+    "appId": "com.event.qrmanager",
+    "productName": "EventQRManager",
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        "portable",
+        "dir"
+      ]
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "public/**/*",
+      "package.json"
+    ]
   },
   "keywords": [
     "electron",
@@ -50,6 +82,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "autoprefixer": "^10.6.0",
     "electron": "^44.3.0",
+    "electron-builder": "^26.15.3",
     "postcss": "^8.5.28",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.13",

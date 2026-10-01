@@ -37,6 +37,7 @@ dependencies:
   supabase_flutter: ^2.17.2
   mobile_scanner: ^7.4.2
   google_fonts: ^8.2.1
+  crypto: ^3.0.6
 
 dev_dependencies:
   flutter_test:

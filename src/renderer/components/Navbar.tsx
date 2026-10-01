@@ -3,7 +3,6 @@ import {
   QrCode, 
   LayoutDashboard, 
   Users, 
-  Camera, 
   Printer, 
   History, 
   Calendar, 
@@ -12,9 +11,14 @@ import {
   Sun,
   Moon,
   Cloud,
-  Server
+  Server,
+  Building2,
+  LogOut,
+  UserCheck,
+  Layers,
+  Sparkles
 } from 'lucide-react';
-import { Event, CloudConfig } from '../../types';
+import { Event, CloudConfig, AppUser } from '../../types';
 import { useTheme } from '../context/ThemeContext';
 
 interface NavbarProps {
@@ -22,9 +26,13 @@ interface NavbarProps {
   setCurrentTab: (tab: string) => void;
   activeEvent: Event | null;
   cloudConfig: CloudConfig | null;
+  currentUser: AppUser | null;
   onOpenEventsModal: () => void;
   onOpenBackupModal: () => void;
   onOpenCloudModal: () => void;
+  onOpenEmployeesModal?: () => void;
+  onOpenSubscriptionModal?: () => void;
+  onLogout: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -32,19 +40,36 @@ export const Navbar: React.FC<NavbarProps> = ({
   setCurrentTab,
   activeEvent,
   cloudConfig,
+  currentUser,
   onOpenEventsModal,
   onOpenBackupModal,
   onOpenCloudModal,
+  onOpenEmployeesModal,
+  onOpenSubscriptionModal,
+  onLogout,
 }) => {
   const { isDark, toggleTheme } = useTheme();
 
-  const navItems = [
-    { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
-    { id: 'invitations', label: 'إدارة الدعوات', icon: Users },
-    { id: 'scanner', label: 'قارئ الـ QR', icon: Camera, highlight: true },
-    { id: 'printing', label: 'الطباعة و PDF', icon: Printer },
-    { id: 'logs', label: 'سجل المسح', icon: History },
-  ];
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
+
+  interface NavItem {
+    id: string;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    highlight?: boolean;
+  }
+
+  const navItems: NavItem[] = isSuperAdmin
+    ? [
+        { id: 'companies', label: 'إدارة الشركات', icon: Building2 },
+        { id: 'system_deployment', label: 'النظام ونموذج النشر', icon: Layers, highlight: true },
+      ]
+    : [
+        { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
+        { id: 'invitations', label: 'إدارة الدعوات', icon: Users },
+        { id: 'printing', label: 'الطباعة و PDF', icon: Printer },
+        { id: 'logs', label: 'سجل المسح', icon: History },
+      ];
 
   return (
     <header className={`sticky top-0 z-40 transition-colors duration-200 border-b px-4 lg:px-8 py-2.5 ${
@@ -56,19 +81,34 @@ export const Navbar: React.FC<NavbarProps> = ({
         
         {/* Logo & Brand (Right side in RTL) */}
         <div className="flex items-center gap-3 shrink-0">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 via-amber-400 to-amber-200 flex items-center justify-center shadow-lg shadow-amber-500/20 shrink-0">
-            <QrCode className="w-5 h-5 text-slate-950 stroke-[2.5]" />
-          </div>
+          {currentUser?.company_logo ? (
+            <div className="w-10 h-10 rounded-xl border border-amber-500/40 overflow-hidden bg-slate-900 shrink-0 shadow-md">
+              <img src={currentUser.company_logo} alt="شعار الشركة" className="w-full h-full object-cover" />
+            </div>
+          ) : (
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 via-amber-400 to-amber-200 flex items-center justify-center shadow-lg shadow-amber-500/20 shrink-0">
+              {isSuperAdmin ? <Building2 className="w-5 h-5 text-slate-950 stroke-[2.5]" /> : <QrCode className="w-5 h-5 text-slate-950 stroke-[2.5]" />}
+            </div>
+          )}
+
           <div>
             <h1 className={`font-bold text-base leading-tight tracking-tight ${
               isDark
                 ? 'bg-gradient-to-r from-amber-200 via-amber-300 to-amber-400 bg-clip-text text-transparent'
                 : 'text-amber-800 font-extrabold'
             }`}>
-              منظومة دعوات المناسبات
+              {currentUser?.company_name || 'منظومة دعوات المناسبات'}
             </h1>
             <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              إدارة وتأكيد الدخول عبر الرموز الذكية
+              {currentUser?.full_name ? (
+                <>
+                  <span className="font-semibold text-amber-300">{currentUser.full_name}</span>
+                  <span className="mx-1">•</span>
+                  <span>{isSuperAdmin ? 'مسؤول النظام العام' : currentUser.role === 'COMPANY_OWNER' ? 'مالك الشركة' : 'موظف استقبال'}</span>
+                </>
+              ) : (
+                'إدارة وتأكيد الدخول عبر الرموز الذكية'
+              )}
             </p>
           </div>
         </div>
@@ -86,7 +126,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 key={item.id}
                 onClick={() => setCurrentTab(item.id)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 whitespace-nowrap ${
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 whitespace-nowrap cursor-pointer ${
                   isActive
                     ? item.highlight
                       ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-700/30 font-bold'
@@ -106,59 +146,63 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Left Controls: Event Selector, Cloud Sync, Theme & Backup */}
         <div className="flex items-center gap-2.5 shrink-0">
           
-          {/* Active Event Selector */}
-          <button
-            onClick={onOpenEventsModal}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-right transition-all group ${
-              isDark
-                ? 'bg-slate-900 hover:bg-slate-800/80 border-amber-500/30'
-                : 'bg-white hover:bg-slate-50 border-amber-400/50 shadow-sm'
-            }`}
-          >
-            <div className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
-            <div className="text-right">
-              <div className={`text-[9px] font-medium leading-none mb-0.5 ${isDark ? 'text-amber-300/80' : 'text-amber-700'}`}>
-                المناسبة الحالية
+          {/* Active Event Selector - Only for Companies */}
+          {!isSuperAdmin && (
+            <button
+              onClick={onOpenEventsModal}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-right transition-all group ${
+                isDark
+                  ? 'bg-slate-900 hover:bg-slate-800/80 border-amber-500/30'
+                  : 'bg-white hover:bg-slate-50 border-amber-400/50 shadow-sm'
+              }`}
+            >
+              <div className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
+              <div className="text-right">
+                <div className={`text-[9px] font-medium leading-none mb-0.5 ${isDark ? 'text-amber-300/80' : 'text-amber-700'}`}>
+                  المناسبة الحالية
+                </div>
+                <div className={`text-xs font-bold truncate max-w-[120px] transition-colors leading-tight ${
+                  isDark ? 'text-slate-100 group-hover:text-amber-300' : 'text-slate-900 group-hover:text-amber-800'
+                }`}>
+                  {activeEvent ? activeEvent.name : 'لا توجد مناسبة نشطة'}
+                </div>
               </div>
-              <div className={`text-xs font-bold truncate max-w-[120px] transition-colors leading-tight ${
-                isDark ? 'text-slate-100 group-hover:text-amber-300' : 'text-slate-900 group-hover:text-amber-800'
-              }`}>
-                {activeEvent ? activeEvent.name : 'لا توجد مناسبة نشطة'}
-              </div>
-            </div>
-            <ChevronDown className={`w-3.5 h-3.5 ${isDark ? 'text-slate-400' : 'text-slate-500'} group-hover:text-amber-500 shrink-0`} />
-          </button>
+              <ChevronDown className={`w-3.5 h-3.5 ${isDark ? 'text-slate-400' : 'text-slate-500'} group-hover:text-amber-500 shrink-0`} />
+            </button>
+          )}
 
-          {/* Cloud Sync / Mode Badge Button */}
-          <button
-            onClick={onOpenCloudModal}
-            title="إعدادات الربط السحابي ومزامنة الأجهزة"
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
-              cloudConfig?.mode === 'cloud'
-                ? isDark
-                  ? 'bg-emerald-950/60 hover:bg-emerald-900/60 border-emerald-500/50 text-emerald-300 shadow-sm shadow-emerald-900/20'
-                  : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-800'
-                : isDark
-                ? 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-400 hover:text-white'
-                : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-600'
-            }`}
-          >
-            {cloudConfig?.mode === 'cloud' ? (
-              <>
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <Cloud className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="font-bold whitespace-nowrap">سحابي ({cloudConfig.deviceName || 'متصل'})</span>
-              </>
-            ) : (
-              <>
-                <Server className="w-3.5 h-3.5 text-slate-400" />
-                <span className="whitespace-nowrap">محلي (SQLite)</span>
-              </>
-            )}
-          </button>
+          {/* Cloud Sync / Mode Badge Button (Super Admin Only) */}
+          {isSuperAdmin && (
+            <button
+              onClick={onOpenCloudModal}
+              title="إعدادات الربط السحابي ومزامنة الأجهزة"
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+                cloudConfig?.mode === 'cloud'
+                  ? isDark
+                    ? 'bg-emerald-950/60 hover:bg-emerald-900/60 border-emerald-500/50 text-emerald-300 shadow-sm shadow-emerald-900/20'
+                    : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-800'
+                  : isDark
+                  ? 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-400 hover:text-white'
+                  : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-600'
+              }`}
+            >
+              {cloudConfig?.mode === 'cloud' ? (
+                <>
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <Cloud className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="font-bold whitespace-nowrap">سحابي ({cloudConfig.deviceName || 'متصل'})</span>
+                </>
+              ) : (
+                <>
+                  <Server className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="whitespace-nowrap">محلي (SQLite)</span>
+                </>
+              )}
+            </button>
+          )}
 
           {/* Vertical Separator */}
           <div className={`h-6 w-[1px] ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`} />
@@ -180,17 +224,65 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </button>
 
-          {/* Backup Button */}
+          {/* Backup Button (Super Admin Only) */}
+          {isSuperAdmin && (
+            <button
+              onClick={onOpenBackupModal}
+              title="النسخ الاحتياطي لقاعدة البيانات"
+              className={`p-2 rounded-xl border transition-colors ${
+                isDark
+                  ? 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-400 hover:text-amber-400'
+                  : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-600 hover:text-amber-600 shadow-sm'
+              }`}
+            >
+              <DatabaseBackup className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Subscription Info Button for Company Owner */}
+          {currentUser?.role === 'COMPANY_OWNER' && onOpenSubscriptionModal && (
+            <button
+              onClick={onOpenSubscriptionModal}
+              title="عرض تفاصيل باقة واشتراك الشركة"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                isDark
+                  ? 'bg-slate-900 hover:bg-slate-800 border-emerald-500/40 text-emerald-300 shadow-sm shadow-emerald-500/10'
+                  : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-900'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              <span>الاشتراك</span>
+            </button>
+          )}
+
+          {/* Employees Management Button for Company Owner */}
+          {currentUser?.role === 'COMPANY_OWNER' && onOpenEmployeesModal && (
+            <button
+              onClick={onOpenEmployeesModal}
+              title="إدارة موظفي الشركة وحساباتهم"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                isDark
+                  ? 'bg-slate-900 hover:bg-slate-800 border-amber-500/40 text-amber-300 shadow-sm shadow-amber-500/10'
+                  : 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-900'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5 text-amber-400" />
+              <span>الموظفين</span>
+            </button>
+          )}
+
+          {/* Logout Button */}
           <button
-            onClick={onOpenBackupModal}
-            title="النسخ الاحتياطي لقاعدة البيانات"
-            className={`p-2 rounded-xl border transition-colors ${
+            onClick={onLogout}
+            title="تسجيل الخروج من الحساب"
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
               isDark
-                ? 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-400 hover:text-amber-400'
-                : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-600 hover:text-amber-600 shadow-sm'
+                ? 'bg-rose-500/15 hover:bg-rose-500/25 border-rose-500/40 text-rose-300 hover:text-white shadow-sm shadow-rose-950/30'
+                : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700 hover:text-rose-900 shadow-sm'
             }`}
           >
-            <DatabaseBackup className="w-4 h-4" />
+            <LogOut className="w-4 h-4 stroke-[2.2]" />
+            <span>تسجيل خروج</span>
           </button>
 
         </div>

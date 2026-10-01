@@ -7,12 +7,13 @@ import {
   PlusCircle, 
   Printer, 
   FileDown, 
-  Camera, 
   Settings2, 
   Eye, 
   AlertCircle,
   Sparkles,
-  Calendar
+  Calendar,
+  RotateCcw,
+  Edit3
 } from 'lucide-react';
 import { Event, EventStats, Invitation, ScanLog } from '../../types';
 
@@ -69,9 +70,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <Calendar className="w-3.5 h-3.5" />
               <span>المناسبة النشطة: {activeEvent.date}</span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
-              {activeEvent.name}
-            </h1>
+            <div className="flex items-center gap-2.5">
+              <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+                {activeEvent.name}
+              </h1>
+              <button
+                onClick={() => onNavigate('events')}
+                title="تعديل اسم أو بيانات المناسبة"
+                className="p-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-amber-400 border border-slate-700/50 transition-colors"
+              >
+                <Edit3 className="w-4 h-4" />
+              </button>
+            </div>
             <p className="text-xs md:text-sm text-slate-400 mt-1">
               السعة المحددة: <span className="text-amber-300 font-bold">{activeEvent.capacity}</span> شخص
             </p>
@@ -85,13 +95,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
             >
               <PlusCircle className="w-4 h-4" />
               <span>إنشاء دعوات</span>
-            </button>
-            <button
-              onClick={() => onNavigate('scanner')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-700/30 transition-all"
-            >
-              <Camera className="w-4 h-4" />
-              <span>الماسح (كاميرا)</span>
             </button>
             <button
               onClick={() => onNavigate('printing')}
@@ -114,6 +117,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <Settings2 className="w-4 h-4" />
               <span>إدارة الدعوات</span>
             </button>
+            {stats.usedInvitations > 0 && (
+              <button
+                onClick={() => onNavigate('invitations')}
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-bold text-xs border border-rose-500/40 shadow-sm transition-all"
+                title="تصفير الكروت المستخدمة وإعادتها جديدة"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>تصفير المستخدمة ({stats.usedInvitations})</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -90,6 +90,12 @@ function registerIpcHandlers() {
   ipcMain.handle('invitations:regenerateToken', (_, invitationId) =>
     InvitationRepository.regenerateToken(invitationId)
   );
+  ipcMain.handle('invitations:resetUsed', (_, eventId) =>
+    InvitationRepository.resetUsedByEvent(eventId)
+  );
+  ipcMain.handle('invitations:resetSingle', (_, invitationId) =>
+    InvitationRepository.resetSingleInvitation(invitationId)
+  );
 
   // Atomic Check-in
   ipcMain.handle('checkIn:verify', (_, token, eventId, deviceName) =>

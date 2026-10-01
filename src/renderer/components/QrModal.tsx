@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { X, Download, Printer, Copy, Check, ShieldCheck, User } from 'lucide-react';
 import { Invitation, Event } from '../../types';
 import { api } from '../utils/apiBridge';
+import { copyToClipboard } from '../utils/clipboard';
 
 interface QrModalProps {
   invitation: Invitation | null;
@@ -21,10 +22,14 @@ export const QrModal: React.FC<QrModalProps> = ({ invitation, event, onClose }) 
 
   if (!invitation) return null;
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(invitation.token);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    if (invitation?.token) {
+      const success = await copyToClipboard(invitation.token);
+      if (success) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+    }
   };
 
   const handleDownload = () => {
