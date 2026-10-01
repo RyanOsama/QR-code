@@ -2893,40 +2893,7 @@ export const PrintSettingsPage: React.FC<PrintSettingsPageProps> = ({ activeEven
                 </div>
               )}
 
-              {/* SYSTEM VECTOR TEMPLATES LIST */}
-              <div className="grid grid-cols-1 gap-2 pt-2 border-t border-slate-800">
-                <div className="text-[11px] font-bold text-slate-400 mb-1">
-                  قوالب التصميم الإضافية:
-                </div>
-                {filteredTemplates.map((opt) => {
-                  const Icon = opt.icon;
-                  const isSelected = settings.cardTheme === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => selectTheme(opt.id)}
-                      className={`p-3 rounded-2xl border text-right transition-all flex items-start gap-3 ${
-                        isSelected
-                          ? 'border-amber-400 bg-amber-500/15 shadow-md shadow-amber-500/10 ring-1 ring-amber-400'
-                          : 'border-slate-800 bg-slate-950/60 hover:bg-slate-800/60 text-slate-400'
-                      }`}
-                    >
-                      <div className={`p-2.5 rounded-xl shrink-0 ${isSelected ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-400'}`}>
-                        <Icon className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1">
-                        <div className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-slate-200'}`}>
-                          {opt.title}
-                        </div>
-                        <div className="text-[11px] text-slate-400 mt-0.5 leading-snug">
-                          {opt.subtitle}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+
 
               {/* WEDDING TITLE FORMAT QUESTION: COUPLE NAMES VS EVENT NAME */}
               {activeEvent.eventType === 'wedding' && (
