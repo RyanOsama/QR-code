@@ -17,6 +17,7 @@ import { DatabaseUpdateScreen } from './components/DatabaseUpdateScreen';
 import { SubscriptionStatusModal } from './components/SubscriptionStatusModal';
 import { CompanySubscriptionViewModal } from './components/CompanySubscriptionViewModal';
 import { CompaniesPage } from './pages/CompaniesPage';
+import { TemplatesPage } from './pages/TemplatesPage';
 import { SystemDeploymentPage } from './pages/SystemDeploymentPage';
 import { EmployeesModal } from './pages/EmployeesModal';
 import { Event, Invitation, ScanLog, EventStats, CloudConfig, AppUser, CommercialAppStatus, TenantSubscription } from '../types';
@@ -396,6 +397,10 @@ export function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
         {currentTab === 'companies' && (
           <CompaniesPage onLogout={handleLogout} />
+        )}
+
+        {currentTab === 'templates' && (
+          <TemplatesPage />
         )}
 
         {currentTab === 'system_deployment' && (

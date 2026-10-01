@@ -341,6 +341,14 @@ function runMigrations(db: Database.Database) {
   } catch (err) {
     console.warn('Super admin seed notice:', err);
   }
+
+  // 9. Initialize and seed Card Templates
+  try {
+    const { CardTemplateRepository } = require('./repositories/cardTemplateRepository');
+    CardTemplateRepository.initTable();
+  } catch (err) {
+    console.warn('Card templates initialization notice:', err);
+  }
 }
 
 export function closeDatabase(): void {

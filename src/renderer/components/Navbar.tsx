@@ -62,6 +62,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const navItems: NavItem[] = isSuperAdmin
     ? [
         { id: 'companies', label: 'إدارة الشركات', icon: Building2 },
+        { id: 'templates', label: 'إدارة القوالب', icon: Sparkles },
         { id: 'system_deployment', label: 'النظام ونموذج النشر', icon: Layers, highlight: true },
       ]
     : [

@@ -103,6 +103,7 @@ import { SubscriptionRepository } from '../database/repositories/subscriptionRep
 import { SystemDeploymentService } from '../services/systemDeploymentService';
 import { LicenseServerService } from '../services/licenseServerService';
 import { DeviceService } from '../services/deviceService';
+import { CardTemplateService } from '../services/cardTemplateService';
 import { AppUser, SystemDeploymentConfig, DedicatedLicenseConfig, BillingCycle, TenantSubscription, LicenseType, LicenseStatus } from '../types';
 
 let currentUser: AppUser | null = null;
@@ -871,6 +872,31 @@ function registerIpcHandlers() {
       console.error('Failed to read from clipboard:', err);
       return '';
     }
+  });
+
+  // Card Templates Management
+  ipcMain.handle('cardTemplates:getAll', async (_, filter) => {
+    return CardTemplateService.getTemplates(filter);
+  });
+
+  ipcMain.handle('cardTemplates:create', async (_, data) => {
+    assertSuperAdmin();
+    return CardTemplateService.createTemplate(data);
+  });
+
+  ipcMain.handle('cardTemplates:update', async (_, id: string, data) => {
+    assertSuperAdmin();
+    return CardTemplateService.updateTemplate(id, data);
+  });
+
+  ipcMain.handle('cardTemplates:delete', async (_, id: string) => {
+    assertSuperAdmin();
+    return CardTemplateService.deleteTemplate(id);
+  });
+
+  ipcMain.handle('cardTemplates:toggleActive', async (_, id: string, isActive: boolean) => {
+    assertSuperAdmin();
+    return CardTemplateService.toggleActive(id, isActive);
   });
 }
 

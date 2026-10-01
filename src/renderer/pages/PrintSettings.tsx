@@ -32,7 +32,7 @@ import {
   BookOpen,
   RotateCw
 } from 'lucide-react';
-import { Event, Invitation, PrintSettings, CardTemplateType, CardColorScheme } from '../../types';
+import { Event, Invitation, PrintSettings, CardTemplateType, CardColorScheme, CardTemplateItem } from '../../types';
 import { api } from '../utils/apiBridge';
 import { 
   renderThemeCorners, 
@@ -1355,6 +1355,27 @@ export const PrintSettingsPage: React.FC<PrintSettingsPageProps> = ({ activeEven
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isOutpaintModalOpen, setIsOutpaintModalOpen] = useState(false);
 
+  // Dynamic Card Templates from Super Admin Database
+  const [dbTemplates, setDbTemplates] = useState<CardTemplateItem[]>([]);
+  const [selectedDbTemplateId, setSelectedDbTemplateId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchDbTemplates = async () => {
+      try {
+        if (window.electronAPI?.getCardTemplates) {
+          const tpls = await window.electronAPI.getCardTemplates({
+            category: activeEvent?.eventType,
+            onlyActive: true,
+          });
+          setDbTemplates(tpls || []);
+        }
+      } catch (err) {
+        console.error('Failed to load card templates:', err);
+      }
+    };
+    fetchDbTemplates();
+  }, [activeEvent?.eventType]);
+
   // 3D Card Preview Modal States & Handlers
   const [is3dModalOpen, setIs3dModalOpen] = useState(false);
   const [cardRotationY, setCardRotationY] = useState(0);
@@ -1645,6 +1666,32 @@ export const PrintSettingsPage: React.FC<PrintSettingsPageProps> = ({ activeEven
     setDetectedDimensions(null);
     setDesignMode('system_templates');
     setPreviewFace('front');
+  };
+
+  const handleSelectDbTemplate = (tpl: CardTemplateItem) => {
+    setSelectedDbTemplateId(tpl.id);
+    setSettings((prev) => ({
+      ...prev,
+      customCardImage: tpl.front_image,
+      customCardBackImage: tpl.back_image || null,
+      customImageWidth: 1200,
+      customImageHeight: 500,
+      customAspectRatio: 2.4,
+      cardTheme: 'custom',
+      designSource: 'custom_images',
+      doubleSidedMode: tpl.back_image ? 'duplex' : 'front_only',
+      customPrimaryColor: tpl.default_primary_color || '#D4AF37',
+      customAccentColor: tpl.default_accent_color || '#FFFFFF',
+      qrPosition: tpl.default_qr_position || 'right',
+      customShowTextOverlay: true,
+    }));
+    setDetectedDimensions({ width: 1200, height: 500, aspect: 2.4 });
+    setDesignMode('custom_images');
+    setPreviewFace('front');
+    setFeedback({
+      type: 'success',
+      text: `✨ تم تطبيق القالب الملكي: "${tpl.name}" بنجاح!`
+    });
   };
 
 
@@ -2779,17 +2826,78 @@ export const PrintSettingsPage: React.FC<PrintSettingsPageProps> = ({ activeEven
               <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between">
                 <label className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>القوالب المتوافقة مع نوع مناسبتك الحالية:</span>
+                  <span>القوالب والتصاميم الفاخرة المعتمدة للمناسبة:</span>
                 </label>
                 <span className="text-[11px] px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 font-bold">
-                  {activeEvent.eventType === 'wedding' ? '💍 حفل زفاف' :
-                   activeEvent.eventType === 'graduation' ? '🎓 حفل تخرج' :
-                   activeEvent.eventType === 'dinner' ? '🍽️ مأدبة وعشاء' : '🎉 احتفال رسمي'}
+                  {activeEvent.eventType === 'wedding' ? '💍 حفلات زفاف وملكة' :
+                   activeEvent.eventType === 'graduation' ? '🎓 حفلات تخرج' :
+                   activeEvent.eventType === 'dinner' ? '🍽️ مأدبة وعشاء' : '🎉 احتفالات ومؤتمرات'}
                 </span>
               </div>
 
-              {/* TEMPLATE CARDS LIST */}
-              <div className="grid grid-cols-1 gap-2">
+              {/* IMPORTED LUXURY DATABASE TEMPLATES GALLERY (MATCHING THE PHOTO) */}
+              {dbTemplates.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-amber-400" />
+                      <span>قوالب الخلفيات الفاخرة (بوجهين عالية الدقة):</span>
+                    </span>
+                    <span className="text-[10px] text-amber-400 font-bold">
+                      {dbTemplates.length} قالب جاهز
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {dbTemplates.map((tpl) => {
+                      const isSelected = selectedDbTemplateId === tpl.id || Boolean(settings.customCardImage && settings.customCardImage === tpl.front_image);
+                      return (
+                        <button
+                          key={tpl.id}
+                          type="button"
+                          onClick={() => handleSelectDbTemplate(tpl)}
+                          className={`group relative p-2 rounded-2xl border text-right transition-all flex flex-col justify-between overflow-hidden cursor-pointer ${
+                            isSelected
+                              ? 'border-amber-400 bg-amber-500/15 shadow-lg shadow-amber-500/20 ring-2 ring-amber-400/80 scale-[1.02]'
+                              : 'border-slate-800 bg-slate-950/80 hover:bg-slate-900 text-slate-300 hover:border-slate-700'
+                          }`}
+                        >
+                          {/* Artwork Thumbnail */}
+                          <div className="relative w-full aspect-[2.4/1] rounded-xl overflow-hidden bg-slate-900 border border-slate-800/80 mb-2">
+                            <img src={tpl.front_image} alt={tpl.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                            {isSelected && (
+                              <div className="absolute top-1.5 left-1.5 p-1 rounded-lg bg-amber-500 text-slate-950 shadow-md">
+                                <Check className="w-3 h-3 stroke-[3]" />
+                              </div>
+                            )}
+                            {tpl.back_image && (
+                              <span className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded text-[9px] font-black bg-slate-950/80 text-amber-300 border border-amber-500/30">
+                                بوجهين 🎴
+                              </span>
+                            )}
+                          </div>
+
+                          <div>
+                            <div className={`text-xs font-bold leading-tight ${isSelected ? 'text-amber-300 font-black' : 'text-slate-200'}`}>
+                              {tpl.name}
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-1 flex items-center justify-between">
+                              <span>نص: {tpl.text_color_scheme === 'gold' ? 'ذهبي' : tpl.text_color_scheme === 'dark' ? 'داكن' : 'أبيض'}</span>
+                              <span className="text-amber-400 font-bold">تطبيق ↵</span>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* SYSTEM VECTOR TEMPLATES LIST */}
+              <div className="grid grid-cols-1 gap-2 pt-2 border-t border-slate-800">
+                <div className="text-[11px] font-bold text-slate-400 mb-1">
+                  قوالب التصميم الإضافية:
+                </div>
                 {filteredTemplates.map((opt) => {
                   const Icon = opt.icon;
                   const isSelected = settings.cardTheme === opt.id;

@@ -99,6 +99,13 @@ const api: ElectronAPI = {
   getDedicatedLicense: () => ipcRenderer.invoke('license:getDedicated'),
   saveDedicatedLicense: (license) => ipcRenderer.invoke('license:saveDedicated', license),
 
+  // Card Templates Management
+  getCardTemplates: (filter) => ipcRenderer.invoke('cardTemplates:getAll', filter),
+  createCardTemplate: (data) => ipcRenderer.invoke('cardTemplates:create', data),
+  updateCardTemplate: (id, data) => ipcRenderer.invoke('cardTemplates:update', id, data),
+  deleteCardTemplate: (id) => ipcRenderer.invoke('cardTemplates:delete', id),
+  toggleCardTemplateActive: (id, isActive) => ipcRenderer.invoke('cardTemplates:toggleActive', id, isActive),
+
   // Clipboard
   copyToClipboard: (text) => ipcRenderer.invoke('clipboard:writeText', text),
   readClipboard: () => ipcRenderer.invoke('clipboard:readText'),

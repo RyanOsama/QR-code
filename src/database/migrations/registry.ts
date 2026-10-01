@@ -1,6 +1,7 @@
 import { MigrationDefinition } from './types';
 import { v1CoreMigration } from './v1_core';
 import { v2SecurityAndPerformanceMigration } from './v2_security_and_performance';
+import { v3CardTemplatesMigration } from './v3_card_templates';
 
 /**
  * Ordered list of all database schema migrations.
@@ -9,6 +10,7 @@ import { v2SecurityAndPerformanceMigration } from './v2_security_and_performance
 export const MIGRATIONS_REGISTRY: MigrationDefinition[] = [
   v1CoreMigration,
   v2SecurityAndPerformanceMigration,
+  v3CardTemplatesMigration,
 ];
 
 /**

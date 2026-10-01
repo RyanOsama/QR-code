@@ -117,8 +117,27 @@ export type CardTemplateType =
   | 'celebration' 
   | 'minimal' 
   | 'custom';
+
 export type QrPositionType = 'center' | 'left' | 'right' | 'bottom' | 'custom';
 export type CardColorScheme = 'default' | 'black_white' | 'blue_white' | 'emerald_white' | 'burgundy' | 'violet' | 'custom';
+
+export interface CardTemplateItem {
+  id: string;
+  name: string;
+  category: 'graduation' | 'wedding' | 'dinner' | 'celebration' | 'general' | 'custom' | string;
+  front_image: string; // Data URL or Image URL
+  back_image?: string | null; // Data URL or Image URL
+  thumbnail_url?: string | null;
+  text_color_scheme?: 'gold' | 'light' | 'dark' | 'custom';
+  default_primary_color?: string;
+  default_accent_color?: string;
+  default_qr_position?: QrPositionType;
+  is_active: boolean;
+  is_builtin: boolean;
+  company_id?: number | null;
+  created_at: string;
+  updated_at: string;
+}
 
 export type CardShapeType = 'rectangle';
 
@@ -532,6 +551,13 @@ export interface ElectronAPI {
   extendTenantSubscription: (companyId: number, durationMonths: number) => Promise<{ success: boolean; subscription?: TenantSubscription; error?: string }>;
   getDedicatedLicense: () => Promise<DedicatedLicenseConfig | null>;
   saveDedicatedLicense: (license: DedicatedLicenseConfig) => Promise<{ success: boolean; error?: string }>;
+
+  // Card Templates Management
+  getCardTemplates: (filter?: { category?: string; companyId?: number | null; onlyActive?: boolean }) => Promise<CardTemplateItem[]>;
+  createCardTemplate: (data: Omit<CardTemplateItem, 'created_at' | 'updated_at'>) => Promise<{ success: boolean; template?: CardTemplateItem; error?: string }>;
+  updateCardTemplate: (id: string, data: Partial<CardTemplateItem>) => Promise<{ success: boolean; template?: CardTemplateItem; error?: string }>;
+  deleteCardTemplate: (id: string) => Promise<{ success: boolean; error?: string }>;
+  toggleCardTemplateActive: (id: string, isActive: boolean) => Promise<{ success: boolean; error?: string }>;
 
   // System Clipboard
   copyToClipboard: (text: string) => Promise<boolean>;
