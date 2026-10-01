@@ -1676,8 +1676,8 @@ export const PrintSettingsPage: React.FC<PrintSettingsPageProps> = ({ activeEven
       customCardImage: tpl.front_image,
       customCardBackImage: tpl.back_image || null,
       customImageWidth: 1200,
-      customImageHeight: 500,
-      customAspectRatio: 2.4,
+      customImageHeight: 600,
+      customAspectRatio: 2.0,
       cardTheme: 'custom',
       designSource: 'custom_images',
       doubleSidedMode: tpl.back_image ? 'duplex' : 'front_only',
@@ -1689,7 +1689,7 @@ export const PrintSettingsPage: React.FC<PrintSettingsPageProps> = ({ activeEven
       customQrSize: 28,
       customShowTextOverlay: true,
     }));
-    setDetectedDimensions({ width: 1200, height: 500, aspect: 2.4 });
+    setDetectedDimensions({ width: 1200, height: 600, aspect: 2.0 });
     setDesignMode('custom_images');
     setPreviewFace('front');
     setFeedback({
@@ -1953,6 +1953,72 @@ export const PrintSettingsPage: React.FC<PrintSettingsPageProps> = ({ activeEven
             alt="Front Face"
             className="w-full h-full object-cover pointer-events-none select-none"
           />
+
+          {/* 3D Front Text Overlay */}
+          {settings.customShowTextOverlay !== false && (
+            <div className="absolute inset-0 z-0 p-3 sm:p-4 flex flex-col justify-between items-center text-center pointer-events-none select-none">
+              <div className="space-y-0.5 max-w-[85%] mt-1">
+                <div
+                  className="text-[9.5px] sm:text-[11px] font-bold tracking-wide"
+                  style={{ color: settings.customPrimaryColor || '#8C6826' }}
+                >
+                  {settings.welcomeText || (activeEvent?.eventType === 'graduation' ? 'حَفْلُ تَخَرُّجْ وتكريم' : 'دعوة لحضور حفل زفاف')}
+                </div>
+                <div
+                  className="text-[12.5px] sm:text-[15px] font-black leading-tight"
+                  style={{
+                    color: settings.customPrimaryColor || '#78350f',
+                    fontFamily: "'Amiri', 'Traditional Arabic', serif",
+                  }}
+                >
+                  {activeEvent?.eventType === 'wedding'
+                    ? ((settings.weddingTitleType || 'couple_names') === 'couple_names'
+                        ? `${settings.groomName || 'العريس'} & ${settings.brideName || 'العروسة'}`
+                        : (activeEvent?.name || 'حفل زفاف مبارك'))
+                    : (activeEvent?.name || 'حفل التكريم والنجاح')}
+                </div>
+              </div>
+
+              <div className="my-auto max-w-[88%]">
+                {currentGuestName ? (
+                  <div className="space-y-0.5">
+                    <div className="text-[8px] sm:text-[9.5px] text-slate-800 font-medium">
+                      {settings.guestPrefixText || 'نتشرف بدعوة المكرم/ـة:'}
+                    </div>
+                    <div
+                      className="text-[11px] sm:text-[13px] font-extrabold px-3 py-0.5 rounded-full inline-block"
+                      style={{
+                        color: settings.customPrimaryColor || '#8C6826',
+                        backgroundColor: 'rgba(255,255,255,0.8)',
+                        border: '1px solid rgba(212,175,55,0.3)',
+                      }}
+                    >
+                      {currentGuestName}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-[9px] sm:text-[10px] text-slate-800 font-medium leading-relaxed max-w-[280px]">
+                    {settings.customSubtitle || 'يسرنا ويسعدنا حضوركم ومشاركتكم فرحتنا'}
+                  </div>
+                )}
+              </div>
+
+              {(settings.venueText || settings.dateText || activeEvent?.venue || activeEvent?.date) && (
+                <div className="flex items-center justify-center gap-3 text-[7.5px] sm:text-[8.5px] text-slate-800 font-bold max-w-[92%] mb-1">
+                  {(settings.venueText || activeEvent?.venue) && (
+                    <span>📍 {settings.venueText || activeEvent?.venue}</span>
+                  )}
+                  {(settings.dateText || activeEvent?.date) && (
+                    <span>🗓️ {settings.dateText || activeEvent?.date}</span>
+                  )}
+                  {settings.timeText && (
+                    <span>⏰ {settings.timeText}</span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {settings.customQrSide !== 'back' && (
             <div
               className={`absolute p-1.5 rounded-xl shadow-2xl -translate-x-1/2 -translate-y-1/2 pointer-events-none ${
@@ -2020,6 +2086,44 @@ export const PrintSettingsPage: React.FC<PrintSettingsPageProps> = ({ activeEven
             alt="Back Face"
             className="w-full h-full object-cover pointer-events-none select-none"
           />
+
+          {/* 3D Back Face Text Overlay */}
+          {settings.customShowTextOverlay !== false && (
+            <div className="absolute inset-0 z-0 p-3 sm:p-4 flex flex-col justify-between items-center text-center pointer-events-none select-none">
+              <div className="space-y-0.5 max-w-[85%] mt-1">
+                <div
+                  className="text-[11px] sm:text-[13px] font-black"
+                  style={{
+                    color: settings.customPrimaryColor || '#8C6826',
+                    fontFamily: "'Amiri', 'Traditional Arabic', serif",
+                  }}
+                >
+                  {settings.backTitleText || activeEvent?.name || 'دعوة كريمة'}
+                </div>
+                <div className="text-[8.5px] sm:text-[10px] font-bold text-slate-800">
+                  {settings.backHeaderText || 'بارك الله لهما وبارك عليهما وجمع بينهما في خير'}
+                </div>
+              </div>
+
+              <div className="my-auto max-w-[85%] text-[8px] sm:text-[9.5px] text-slate-800 leading-relaxed font-medium">
+                {settings.backMessageText || 'حضوركم يشرّفنا وتكتمل به فرحتنا وسرورنا'}
+              </div>
+
+              <div className="mb-1">
+                <span
+                  className="px-3 py-0.5 rounded-full text-[7.5px] sm:text-[8.5px] font-bold inline-block"
+                  style={{
+                    backgroundColor: 'rgba(255,255,255,0.85)',
+                    color: settings.customPrimaryColor || '#8C6826',
+                    border: `1px solid rgba(212,175,55,0.4)`,
+                  }}
+                >
+                  {settings.backBadgeText || 'بطاقة دعوة خاصة'}
+                </span>
+              </div>
+            </div>
+          )}
+
           {settings.customQrSide === 'back' && (
             <div
               className={`absolute p-1.5 rounded-xl shadow-2xl -translate-x-1/2 -translate-y-1/2 pointer-events-none ${
@@ -2696,6 +2800,170 @@ export const PrintSettingsPage: React.FC<PrintSettingsPageProps> = ({ activeEven
                     className="w-full accent-teal-500 cursor-pointer"
                   />
                 </div>
+              </div>
+
+              {/* Text & Color Customization on Custom Background Image */}
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>تخصيص نصوص وألوان التصميم فوق القالب:</span>
+                  </h4>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">
+                    معاينة حية ⚡
+                  </span>
+                </div>
+
+                {/* Master Toggle: Show/Hide Text Overlay */}
+                <label className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 cursor-pointer hover:bg-slate-850 transition-colors">
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-bold text-slate-200">إظهار نصوص الدعوة والأسماء فوق القالب</div>
+                    <div className="text-[10px] text-slate-400">
+                      عرض عبارات الترحيب، الأسماء، وبيانات المناسبة مباشرة على خلفية القالب
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={settings.customShowTextOverlay !== false}
+                    onChange={(e) => setSettings({ ...settings, customShowTextOverlay: e.target.checked })}
+                    className="w-4 h-4 accent-amber-500 rounded cursor-pointer"
+                  />
+                </label>
+
+                {settings.customShowTextOverlay !== false && (
+                  <div className="space-y-3 pt-2 border-t border-slate-850">
+                    {/* Text Color Selection (Palettes & Custom Picker) */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-[11px] font-bold text-slate-300">
+                          لون النصوص والأسماء الرئيسية:
+                        </label>
+                        <span className="text-[10px] font-mono text-amber-400 font-bold">
+                          {settings.customPrimaryColor || '#8C6826'}
+                        </span>
+                      </div>
+                      
+                      <div className="flex flex-wrap items-center gap-2">
+                        {[
+                          { name: 'ذهبي كلاسيكي', color: '#8C6826' },
+                          { name: 'ذهبي لامع', color: '#D4AF37' },
+                          { name: 'عنابي فاخر', color: '#881337' },
+                          { name: 'كحلي ملكي', color: '#1e3a8a' },
+                          { name: 'أسود داكن', color: '#0f172a' },
+                          { name: 'أبيض ناصع', color: '#ffffff' },
+                        ].map((p) => {
+                          const isSel = (settings.customPrimaryColor || '#8C6826').toLowerCase() === p.color.toLowerCase();
+                          return (
+                            <button
+                              key={p.color}
+                              type="button"
+                              onClick={() => setSettings({ ...settings, customPrimaryColor: p.color })}
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                                isSel
+                                  ? 'border-amber-400 bg-amber-500/20 text-white ring-1 ring-amber-400'
+                                  : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                              }`}
+                            >
+                              <span className="w-3 h-3 rounded-full border border-black/20" style={{ backgroundColor: p.color }} />
+                              <span>{p.name}</span>
+                            </button>
+                          );
+                        })}
+
+                        {/* Custom Color Input */}
+                        <label className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-slate-800 bg-slate-900 text-[10px] text-slate-300 font-bold cursor-pointer hover:border-slate-700">
+                          <span>لون مخصص:</span>
+                          <input
+                            type="color"
+                            value={settings.customPrimaryColor || '#8C6826'}
+                            onChange={(e) => setSettings({ ...settings, customPrimaryColor: e.target.value })}
+                            className="w-5 h-5 rounded cursor-pointer bg-transparent border-0"
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Wedding Names / Event Title Controls */}
+                    {activeEvent?.eventType === 'wedding' && (
+                      <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                        <div className="text-[11px] font-bold text-slate-300">
+                          صيغة العنوان (أسماء العروسين):
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSettings({ ...settings, weddingTitleType: 'couple_names' })}
+                            className={`p-1.5 rounded-lg border text-[11px] font-bold transition-all ${
+                              (settings.weddingTitleType || 'couple_names') === 'couple_names'
+                                ? 'bg-amber-500 text-slate-950 border-amber-400'
+                                : 'bg-slate-900 border-slate-800 text-slate-400'
+                            }`}
+                          >
+                            💍 بأسماء العروسين
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSettings({ ...settings, weddingTitleType: 'event_name' })}
+                            className={`p-1.5 rounded-lg border text-[11px] font-bold transition-all ${
+                              settings.weddingTitleType === 'event_name'
+                                ? 'bg-amber-500 text-slate-950 border-amber-400'
+                                : 'bg-slate-900 border-slate-800 text-slate-400'
+                            }`}
+                          >
+                            👑 اسم المناسبة العام
+                          </button>
+                        </div>
+
+                        {(settings.weddingTitleType || 'couple_names') === 'couple_names' && (
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                            <div>
+                              <label className="text-[10px] text-slate-400 block mb-0.5">اسم العريس:</label>
+                              <input
+                                type="text"
+                                value={settings.groomName || 'أحمد'}
+                                onChange={(e) => setSettings({ ...settings, groomName: e.target.value })}
+                                className="w-full px-2 py-1 bg-slate-950 border border-slate-800 rounded text-xs text-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-slate-400 block mb-0.5">اسم العروسة:</label>
+                              <input
+                                type="text"
+                                value={settings.brideName || 'ماريا'}
+                                onChange={(e) => setSettings({ ...settings, brideName: e.target.value })}
+                                className="w-full px-2 py-1 bg-slate-950 border border-slate-800 rounded text-xs text-white"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Welcome Text Input */}
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-0.5">عبارة الترحيب العلوية:</label>
+                      <input
+                        type="text"
+                        value={settings.welcomeText || ''}
+                        onChange={(e) => setSettings({ ...settings, welcomeText: e.target.value })}
+                        placeholder="مثال: دعوة لحضور حفل زفاف أو حفل تخرج وتكريم"
+                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white"
+                      />
+                    </div>
+
+                    {/* Subtitle / General message */}
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-0.5">عبارة الدعوة / الترحيب بالضيوف:</label>
+                      <input
+                        type="text"
+                        value={settings.customSubtitle || ''}
+                        onChange={(e) => setSettings({ ...settings, customSubtitle: e.target.value })}
+                        placeholder="مثال: نتشرف بدعوتكم لحضور حفل زفافنا"
+                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Elements with Barcode (Toggles for Event Name & Code Number & White Box) */}
@@ -3974,12 +4242,12 @@ export const PrintSettingsPage: React.FC<PrintSettingsPageProps> = ({ activeEven
                     : `${Math.min(settings.cardWidth || 58, settings.cardHeight || 85)} / ${Math.max(settings.cardWidth || 58, settings.cardHeight || 85)}`;
 
                   const cardContainerMaxWidth = isCustomDesign
-                    ? (customAspect < 0.85 ? 'max-w-[280px]' : customAspect > 1.25 ? 'max-w-[420px]' : 'max-w-[340px]')
+                    ? (customAspect < 0.85 ? 'max-w-[320px]' : customAspect > 1.25 ? 'max-w-[500px]' : 'max-w-[380px]')
                     : isSquare
-                    ? 'max-w-[280px]'
+                    ? 'max-w-[300px]'
                     : isLandscape
-                    ? 'max-w-[360px]'
-                    : 'max-w-[270px]';
+                    ? 'max-w-[440px]'
+                    : 'max-w-[300px]';
 
                   const eventVenue = (settings.venueText || activeEvent?.venue || (activeEvent as any)?.location || '').trim();
                   const eventDate = (settings.weddingHijriDate || settings.dateText || activeEvent?.date || '').trim();
@@ -4494,10 +4762,55 @@ export const PrintSettingsPage: React.FC<PrintSettingsPageProps> = ({ activeEven
                         : settings.customCardImage!;
                       const showQr = (sheetSide === 'front' && settings.customQrSide !== 'back') ||
                         (sheetSide === 'back' && settings.customQrSide === 'back');
+                      const isFront = sheetSide === 'front';
 
                       return (
                         <div key={idx} className="relative w-full h-full rounded overflow-hidden border border-slate-200">
                           <img src={faceImg} alt="Card" className="w-full h-full object-cover" />
+                          
+                          {/* Text Overlay in Sheet Grid */}
+                          {settings.customShowTextOverlay !== false && isFront && (
+                            <div className="absolute inset-0 p-1 flex flex-col justify-between items-center text-center pointer-events-none select-none">
+                              <div className="leading-tight">
+                                <div className="text-[5.5px] font-black truncate max-w-[90%]" style={{ color: settings.customPrimaryColor || '#8C6826' }}>
+                                  {activeEvent?.eventType === 'wedding'
+                                    ? ((settings.weddingTitleType || 'couple_names') === 'couple_names'
+                                        ? `${settings.groomName || 'العريس'} & ${settings.brideName || 'العروسة'}`
+                                        : (activeEvent?.name || 'حفل زفاف'))
+                                    : (activeEvent?.name || 'حفل التكريم')}
+                                </div>
+                              </div>
+                              <div className="my-auto max-w-[90%]">
+                                {gName ? (
+                                  <div className="text-[5px] font-bold text-slate-800 bg-white/80 px-1 rounded truncate">
+                                    {gName}
+                                  </div>
+                                ) : (
+                                  <div className="text-[4.5px] text-slate-700 truncate">
+                                    {settings.customSubtitle || 'دعوة كريمة'}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-[4px] text-slate-600 truncate">
+                                {settings.dateText || activeEvent?.date || ''}
+                              </div>
+                            </div>
+                          )}
+
+                          {settings.customShowTextOverlay !== false && !isFront && (
+                            <div className="absolute inset-0 p-1 flex flex-col justify-between items-center text-center pointer-events-none select-none">
+                              <div className="text-[5.5px] font-black truncate max-w-[90%]" style={{ color: settings.customPrimaryColor || '#8C6826' }}>
+                                {settings.backTitleText || activeEvent?.name || 'دعوة كريمة'}
+                              </div>
+                              <div className="my-auto text-[4.5px] text-slate-700 max-w-[90%] truncate">
+                                {settings.backMessageText || 'حضوركم يشرّفنا وتكتمل به فرحتنا'}
+                              </div>
+                              <div className="text-[4px] text-slate-600 truncate">
+                                {settings.backBadgeText || 'بطاقة دعوة خاصة'}
+                              </div>
+                            </div>
+                          )}
+
                           {showQr && (
                             <div
                               className="absolute p-0.5 bg-white rounded shadow border -translate-x-1/2 -translate-y-1/2"
