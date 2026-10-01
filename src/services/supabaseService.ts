@@ -187,6 +187,18 @@ export class SupabaseService {
     return (data || []) as Event[];
   }
 
+  static async getEventById(id: number): Promise<Event | null> {
+    const client = this.getClient();
+    if (!client) return null;
+    try {
+      const { data, error } = await client.from('events').select('*').eq('id', id).maybeSingle();
+      if (error || !data) return null;
+      return data as Event;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static async getActiveEvent(companyId?: number | null): Promise<Event | null> {
     const client = this.getClient();
     if (!client) throw new Error('Supabase client not initialized');

@@ -104,7 +104,7 @@ import { SystemDeploymentService } from '../services/systemDeploymentService';
 import { LicenseServerService } from '../services/licenseServerService';
 import { DeviceService } from '../services/deviceService';
 import { CardTemplateService } from '../services/cardTemplateService';
-import { AppUser, SystemDeploymentConfig, DedicatedLicenseConfig, BillingCycle, TenantSubscription, LicenseType, LicenseStatus } from '../types';
+import { AppUser, SystemDeploymentConfig, DedicatedLicenseConfig, BillingCycle, TenantSubscription, LicenseType, LicenseStatus, Event, Invitation } from '../types';
 
 let currentUser: AppUser | null = null;
 
@@ -135,22 +135,59 @@ function assertTenantAccess(companyId?: number | null): number {
   return user.company_id;
 }
 
-function assertEventTenantAccess(eventId: number): void {
+async function assertEventTenantAccess(eventId: number): Promise<void> {
   const user = assertAuthenticated();
   if (user.role === 'SUPER_ADMIN') return;
-  const event = EventRepository.getById(eventId);
+  let event = EventRepository.getById(eventId);
+  if (!event && SupabaseService.isCloudMode()) {
+    try {
+      event = await SupabaseService.getEventById(eventId);
+      if (event) {
+        try {
+          const db = require('../database/connection').getDatabase();
+          db.prepare(`
+            INSERT OR REPLACE INTO events (id, company_id, name, date, time, venue, eventType, capacity, status, created_at, updated_at)
+            VALUES (@id, @company_id, @name, @date, @time, @venue, @eventType, @capacity, @status, @created_at, @updated_at)
+          `).run({
+            id: event.id,
+            company_id: event.company_id || null,
+            name: event.name,
+            date: event.date,
+            time: event.time || null,
+            venue: event.venue || null,
+            eventType: event.eventType || 'wedding',
+            capacity: event.capacity,
+            status: event.status,
+            created_at: event.created_at,
+            updated_at: event.updated_at,
+          });
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
   if (!event) throw new Error('المناسبة المطلوبة غير موجودة');
   if (event.company_id && event.company_id !== user.company_id) {
     throw new Error('غير مصرح لك بالوصول لمناسبات شركة أخرى (403 Forbidden).');
   }
 }
 
-function assertInvitationTenantAccess(invitationId: number): void {
+async function assertInvitationTenantAccess(invitationId: number): Promise<void> {
   const user = assertAuthenticated();
   if (user.role === 'SUPER_ADMIN') return;
-  const inv = InvitationRepository.getById(invitationId);
+  let inv = InvitationRepository.getById(invitationId);
+  if (!inv && SupabaseService.isCloudMode()) {
+    try {
+      const client = SupabaseService.getClient();
+      if (client) {
+        const { data } = await client.from('invitations').select('*').eq('id', invitationId).maybeSingle();
+        if (data) inv = data as Invitation;
+      }
+    } catch (_) {}
+  }
+
   if (!inv) throw new Error('الدعوة المطلوبة غير موجودة');
-  assertEventTenantAccess(inv.event_id);
+  await assertEventTenantAccess(inv.event_id);
 }
 
 function assertUserTenantAccess(targetUserId: number): void {
@@ -387,7 +424,30 @@ function registerIpcHandlers() {
     const validCompanyId = currentUser ? assertTenantAccess(companyId) : companyId;
     if (SupabaseService.isCloudMode()) {
       try {
-        return await SupabaseService.getEvents(validCompanyId);
+        const events = await SupabaseService.getEvents(validCompanyId);
+        try {
+          const db = require('../database/connection').getDatabase();
+          const insertStmt = db.prepare(`
+            INSERT OR REPLACE INTO events (id, company_id, name, date, time, venue, eventType, capacity, status, created_at, updated_at)
+            VALUES (@id, @company_id, @name, @date, @time, @venue, @eventType, @capacity, @status, @created_at, @updated_at)
+          `);
+          for (const ev of events) {
+            insertStmt.run({
+              id: ev.id,
+              company_id: ev.company_id || null,
+              name: ev.name,
+              date: ev.date,
+              time: ev.time || null,
+              venue: ev.venue || null,
+              eventType: ev.eventType || 'wedding',
+              capacity: ev.capacity,
+              status: ev.status,
+              created_at: ev.created_at,
+              updated_at: ev.updated_at,
+            });
+          }
+        } catch (_) {}
+        return events;
       } catch (err) {
         logCloudFallback('events:getAll', err);
       }
@@ -399,7 +459,29 @@ function registerIpcHandlers() {
     const validCompanyId = currentUser ? assertTenantAccess(companyId) : companyId;
     if (SupabaseService.isCloudMode()) {
       try {
-        return await SupabaseService.getActiveEvent(validCompanyId);
+        const active = await SupabaseService.getActiveEvent(validCompanyId);
+        if (active) {
+          try {
+            const db = require('../database/connection').getDatabase();
+            db.prepare(`
+              INSERT OR REPLACE INTO events (id, company_id, name, date, time, venue, eventType, capacity, status, created_at, updated_at)
+              VALUES (@id, @company_id, @name, @date, @time, @venue, @eventType, @capacity, @status, @created_at, @updated_at)
+            `).run({
+              id: active.id,
+              company_id: active.company_id || null,
+              name: active.name,
+              date: active.date,
+              time: active.time || null,
+              venue: active.venue || null,
+              eventType: active.eventType || 'wedding',
+              capacity: active.capacity,
+              status: active.status,
+              created_at: active.created_at,
+              updated_at: active.updated_at,
+            });
+          } catch (_) {}
+        }
+        return active;
       } catch (err) {
         logCloudFallback('events:getActive', err);
       }
@@ -418,7 +500,27 @@ function registerIpcHandlers() {
     };
     if (SupabaseService.isCloudMode()) {
       try {
-        return await SupabaseService.createEvent(scopedData);
+        const created = await SupabaseService.createEvent(scopedData);
+        try {
+          const db = require('../database/connection').getDatabase();
+          db.prepare(`
+            INSERT OR REPLACE INTO events (id, company_id, name, date, time, venue, eventType, capacity, status, created_at, updated_at)
+            VALUES (@id, @company_id, @name, @date, @time, @venue, @eventType, @capacity, @status, @created_at, @updated_at)
+          `).run({
+            id: created.id,
+            company_id: created.company_id || null,
+            name: created.name,
+            date: created.date,
+            time: created.time || null,
+            venue: created.venue || null,
+            eventType: created.eventType || 'wedding',
+            capacity: created.capacity,
+            status: created.status,
+            created_at: created.created_at,
+            updated_at: created.updated_at,
+          });
+        } catch (_) {}
+        return created;
       } catch (err) {
         logCloudFallback('events:create', err);
       }
@@ -427,13 +529,17 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('events:update', async (_, id, data) => {
-    assertEventTenantAccess(id);
+    await assertEventTenantAccess(id);
     if (currentUser?.role === 'EMPLOYEE') {
       throw new Error('غير مصرح للموظفين بتعديل بيانات المناسبات (403 Forbidden).');
     }
     if (SupabaseService.isCloudMode()) {
       try {
-        return await SupabaseService.updateEvent(id, data);
+        const updated = await SupabaseService.updateEvent(id, data);
+        try {
+          EventRepository.update(id, data);
+        } catch (_) {}
+        return updated;
       } catch (err) {
         logCloudFallback('events:update', err);
       }
@@ -442,10 +548,14 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('events:setActive', async (_, id) => {
-    assertEventTenantAccess(id);
+    await assertEventTenantAccess(id);
     if (SupabaseService.isCloudMode()) {
       try {
-        return await SupabaseService.setActiveEvent(id);
+        await SupabaseService.setActiveEvent(id);
+        try {
+          EventRepository.setActive(id);
+        } catch (_) {}
+        return;
       } catch (err) {
         logCloudFallback('events:setActive', err);
       }
@@ -454,13 +564,17 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('events:delete', async (_, id) => {
-    assertEventTenantAccess(id);
+    await assertEventTenantAccess(id);
     if (currentUser?.role === 'EMPLOYEE') {
       throw new Error('غير مصرح للموظفين بحذف المناسبات (403 Forbidden).');
     }
     if (SupabaseService.isCloudMode()) {
       try {
-        return await SupabaseService.deleteEvent(id);
+        const res = await SupabaseService.deleteEvent(id);
+        try {
+          EventRepository.delete(id);
+        } catch (_) {}
+        return res;
       } catch (err) {
         logCloudFallback('events:delete', err);
       }
@@ -470,7 +584,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('events:getStats', async (_, eventId) => {
-    assertEventTenantAccess(eventId);
+    await assertEventTenantAccess(eventId);
     if (SupabaseService.isCloudMode()) {
       try {
         return await SupabaseService.getEventStats(eventId);
@@ -483,7 +597,7 @@ function registerIpcHandlers() {
 
   // Invitations
   ipcMain.handle('invitations:getByEvent', async (_, eventId, filter) => {
-    assertEventTenantAccess(eventId);
+    await assertEventTenantAccess(eventId);
     if (SupabaseService.isCloudMode()) {
       try {
         return await SupabaseService.getInvitations(eventId, filter);
@@ -495,7 +609,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('invitations:generateBatch', async (_, eventId, count, guestNames, graduateAllocations) => {
-    assertEventTenantAccess(eventId);
+    await assertEventTenantAccess(eventId);
     if (currentUser?.role === 'EMPLOYEE') {
       throw new Error('غير مصرح للموظفين بتوليد دفعات دعوات جديدة (403 Forbidden).');
     }
@@ -511,7 +625,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('invitations:addBatch', async (_, eventId, count, guestNames) => {
-    assertEventTenantAccess(eventId);
+    await assertEventTenantAccess(eventId);
     if (currentUser?.role === 'EMPLOYEE') {
       throw new Error('غير مصرح للموظفين بزيادة سعة المناسبة وتوليد دعوات (403 Forbidden).');
     }
@@ -527,7 +641,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('invitations:updateGuestName', async (_, invitationId, guestName) => {
-    assertInvitationTenantAccess(invitationId);
+    await assertInvitationTenantAccess(invitationId);
     if (SupabaseService.isCloudMode()) {
       try {
         return await SupabaseService.updateGuestName(invitationId, guestName);
@@ -539,7 +653,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('invitations:delete', async (_, invitationId) => {
-    assertInvitationTenantAccess(invitationId);
+    await assertInvitationTenantAccess(invitationId);
     if (currentUser?.role === 'EMPLOYEE') {
       throw new Error('غير مصرح للموظفين بحذف الدعوات الفردية (403 Forbidden).');
     }
@@ -554,7 +668,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('invitations:regenerateToken', async (_, invitationId) => {
-    assertInvitationTenantAccess(invitationId);
+    await assertInvitationTenantAccess(invitationId);
     if (currentUser?.role === 'EMPLOYEE') {
       throw new Error('غير مصرح للموظفين بإعادة توليد رموز الدعوات (403 Forbidden).');
     }
@@ -569,7 +683,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('invitations:resetUsed', async (_, eventId) => {
-    assertEventTenantAccess(eventId);
+    await assertEventTenantAccess(eventId);
     if (currentUser?.role === 'EMPLOYEE') {
       throw new Error('غير مصرح للموظفين بتصفير سجلات الدخول (403 Forbidden).');
     }
@@ -584,7 +698,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('invitations:resetSingle', async (_, invitationId) => {
-    assertInvitationTenantAccess(invitationId);
+    await assertInvitationTenantAccess(invitationId);
     if (currentUser?.role === 'EMPLOYEE') {
       throw new Error('غير مصرح للموظفين بتصفير حالة الدعوة (403 Forbidden).');
     }
@@ -600,7 +714,7 @@ function registerIpcHandlers() {
 
   // Atomic Check-in
   ipcMain.handle('checkIn:verify', async (_, token, eventId, deviceName, scannedBy) => {
-    assertEventTenantAccess(eventId);
+    await assertEventTenantAccess(eventId);
     const scannerName = scannedBy || currentUser?.full_name || 'مسؤول البوابة';
     if (SupabaseService.isCloudMode()) {
       try {
@@ -614,7 +728,7 @@ function registerIpcHandlers() {
 
   // Scan Logs
   ipcMain.handle('scanLogs:getByEvent', async (_, eventId, limit) => {
-    assertEventTenantAccess(eventId);
+    await assertEventTenantAccess(eventId);
     const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 5000));
     if (SupabaseService.isCloudMode()) {
       try {
